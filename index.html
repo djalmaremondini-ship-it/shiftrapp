@@ -607,7 +607,39 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .dash-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 .dash-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;}
 
-/* ── RESPONSIVE ── */
+/* ── DOCUMENTOS ── */
+.doc-item{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface2);margin-bottom:5px;cursor:pointer;
+  transition:all .15s;
+}
+.doc-item:hover{border-color:var(--border2);background:var(--surface3);}
+.doc-item.vencido{border-color:var(--red);background:rgba(240,80,110,.07);}
+.doc-item.alerta{border-color:var(--sun);background:rgba(245,166,35,.07);}
+.doc-item.ok{border-color:var(--green);background:rgba(46,194,126,.06);}
+.doc-icon{font-size:16px;flex-shrink:0;}
+.doc-info{flex:1;min-width:0;}
+.doc-nome{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.doc-inst{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;}
+.doc-val{font-family:var(--mono);font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;}
+.doc-val.vencido{color:var(--red);}
+.doc-val.alerta{color:var(--sun);}
+.doc-val.ok{color:var(--green);}
+
+/* ── ALERTAS ── */
+.alerta-item{
+  display:flex;gap:12px;padding:12px 14px;
+  border-radius:var(--radius);margin-bottom:8px;
+  border:1px solid;
+}
+.alerta-item.critico{background:rgba(240,80,110,.1);border-color:rgba(240,80,110,.4);}
+.alerta-item.aviso{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.4);}
+.alerta-item.ir{background:rgba(124,106,247,.1);border-color:rgba(124,106,247,.4);}
+.alerta-emoji{font-size:20px;flex-shrink:0;line-height:1.4;}
+.alerta-texto{flex:1;}
+.alerta-titulo{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.alerta-sub{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.5;}
 @media(max-width:768px){
   .topbar-mobile{display:flex;}
   .layout{flex-direction:column;}
@@ -765,7 +797,82 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 </div>
 <div class="sidebar-overlay" id="sb-overlay" onclick="fecharMenu()"></div>
 
-<!-- Modal hospital -->
+<!-- Modal documento -->
+<div class="modal-overlay" id="modal-doc">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="md-title">Novo documento</div>
+    <div class="modal-field">
+      <label>Tipo</label>
+      <select id="md-tipo" style="font-family:var(--mono);font-size:12px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:100%;cursor:pointer;">
+        <option value="curso">📋 Curso / Certificado</option>
+        <option value="crm">🪪 CRM / Registro</option>
+        <option value="rqe">🏅 RQE / Especialidade</option>
+        <option value="alvara">📄 Alvará / Licença</option>
+        <option value="outros">📎 Outros</option>
+      </select>
+    </div>
+    <div class="modal-field"><label>Nome do documento</label><input type="text" id="md-nome" placeholder="Ex: BLS — Suporte Básico de Vida"></div>
+    <div class="modal-field"><label>Instituição</label><input type="text" id="md-inst" placeholder="Ex: AHA, CFM, CRM-SP..."></div>
+    <div class="modal-field"><label>Data de validade</label><input type="date" id="md-val"></div>
+
+    <!-- Upload de arquivo -->
+    <div class="modal-field">
+      <label>Arquivo (PDF ou imagem — máx. 500KB)</label>
+      <div id="md-upload-area" onclick="document.getElementById('md-file').click()" style="
+        border:2px dashed var(--border2);border-radius:var(--radius);
+        padding:16px;text-align:center;cursor:pointer;transition:all .15s;
+        background:var(--surface2);">
+        <input type="file" id="md-file" accept=".pdf,image/*" style="display:none" onchange="handleDocFile(event)">
+        <div id="md-upload-label">
+          <div style="font-size:24px;margin-bottom:6px;">📁</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">Toque para selecionar</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;">PDF, JPG, PNG até 500KB</div>
+        </div>
+      </div>
+      <!-- Preview do arquivo -->
+      <div id="md-file-preview" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface3);border-radius:var(--radius);border:1px solid var(--border);display:none;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="md-file-icon" style="font-size:20px;">📄</span>
+          <div style="flex:1;min-width:0;">
+            <div id="md-file-name" style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="md-file-size" style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;"></div>
+          </div>
+          <button onclick="removerArquivoDoc()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:2px;flex-shrink:0;">✕</button>
+        </div>
+      </div>
+      <div id="md-file-erro" style="font-family:var(--mono);font-size:10px;color:var(--red);margin-top:5px;display:none;"></div>
+    </div>
+
+    <div id="md-erro" style="font-family:var(--mono);font-size:10px;color:var(--red);margin-bottom:8px;display:none;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModalDoc()">Cancelar</button>
+      <button class="btn-primary" id="md-btn-salvar" onclick="salvarDoc()">Salvar</button>
+    </div>
+    <!-- Ações do documento existente -->
+    <div id="md-acoes-existente" style="display:none;margin-top:10px;display:none;">
+      <div style="display:flex;gap:6px;">
+        <button onclick="verDocumento()" style="flex:1;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text2);">👁 Visualizar</button>
+        <button onclick="baixarDocumento()" style="flex:1;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text2);">⬇ Baixar</button>
+      </div>
+    </div>
+    <button class="btn-danger-sm" id="md-del" style="display:none" onclick="excluirDoc()">Excluir documento</button>
+  </div>
+</div>
+
+<!-- Painel de alertas -->
+<div id="painel-alertas" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9997;background:var(--surface);border-bottom:2px solid var(--accent);box-shadow:var(--shadow-lg);max-height:85vh;overflow-y:auto;">
+  <div style="padding:16px 18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px;">
+        <span style="font-size:18px;">🔔</span> Alertas pendentes
+      </div>
+      <button onclick="fecharAlertas()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;">✕</button>
+    </div>
+    <div id="alertas-content"></div>
+    <button onclick="fecharAlertas()" style="width:100%;margin-top:12px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text2);">Entendi</button>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-hosp">
   <div class="modal">
     <div class="modal-drag"></div>
@@ -792,6 +899,29 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
       <div class="modal-field">
         <label>☽ Noturno</label>
         <input type="text" id="mh-hn" readonly placeholder="—" style="opacity:.6;cursor:default;background:var(--surface3);">
+      </div>
+    </div>
+    <!-- Regime tributário -->
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Regime tributário</div>
+    <div class="modal-field">
+      <label>Tipo de contratação</label>
+      <select id="mh-regime" onchange="toggleRegimeIR()" style="font-family:var(--mono);font-size:12px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:100%;cursor:pointer;">
+        <option value="empresa">🏢 Empresa intermediária (IR gerenciado pela empresa)</option>
+        <option value="cnpj">🏛 CNPJ próprio — alíquota fixa</option>
+        <option value="pf">👤 Pessoa física — tabela progressiva</option>
+      </select>
+    </div>
+    <div id="mh-ir-cnpj" style="display:none;">
+      <div class="modal-field">
+        <label>Alíquota IR (%)</label>
+        <input type="number" id="mh-aliq" min="0" max="100" step="0.1" placeholder="Ex: 6 para Simples Nacional" style="font-family:var(--mono);font-size:13px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:100%;">
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);padding:4px 0 8px;">Ex: 6% Simples Nacional · 11.33% Lucro Presumido</div>
+    </div>
+    <div id="mh-ir-pf" style="display:none;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--accent2);padding:8px 10px;background:var(--accent-glow);border-radius:var(--radius);border:1px solid rgba(124,106,247,.2);">
+        📊 Tabela progressiva 2026 aplicada automaticamente por ciclo de pagamento.<br>
+        <span style="color:var(--text3);font-size:9px;">Isenção até R$ 5.000 · Redutor até R$ 7.350 · Máx 27,5%</span>
       </div>
     </div>
     <div class="modal-actions">
@@ -971,6 +1101,18 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
+    <!-- Documentos e Certificados -->
+    <div class="sb-sec">
+      <div class="sb-title">
+        Documentos &amp; Certificados
+        <button class="sb-toggle" id="btn-docs-body" onclick="toggleSec('docs-body',this)">+</button>
+      </div>
+      <div class="sb-collapse" id="docs-body" style="display:none">
+        <div id="docs-list"></div>
+        <button class="btn-add-hosp" onclick="abrirModalDoc()" style="margin-top:6px">+ Adicionar documento</button>
+      </div>
+    </div>
+
     <!-- Instalar PWA -->
     <div class="sb-sec">
       <button id="btn-instalar-pwa" onclick="instalarPWA()" style="display:none;width:100%;align-items:center;justify-content:center;gap:8px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.07em;padding:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);cursor:pointer;box-shadow:0 4px 14px var(--accent-glow);">
@@ -1076,8 +1218,9 @@ async function carregarDoFirestore(uid){
 
     if(snap.exists()){
       const d = snap.data();
-      if(Array.isArray(d.plantoes))  plantoes  = d.plantoes;
-      if(Array.isArray(d.hospitais)) hospitais = d.hospitais;
+      if(Array.isArray(d.plantoes))   plantoes   = d.plantoes;
+      if(Array.isArray(d.hospitais))  hospitais  = d.hospitais;
+      if(Array.isArray(d.documentos)) documentos = d.documentos;
       if(d.regras && typeof d.regras==='object') { regras=d.regras; regrasHosp=regras; }
       if(d.perfil && typeof d.perfil==='object') perfil = {...perfil, ...d.perfil};
       if(d.tema) localStorage.setItem(DK, d.tema);
@@ -1086,6 +1229,8 @@ async function carregarDoFirestore(uid){
     loadTema();
     atualizarUIperfil();
     render();
+    renderDocs();
+    setTimeout(verificarAlertas, 800);
   }, (err)=>{
     console.warn('Erro no listener Firestore:',err);
     showSyncBar('Erro de conexão ⚠');
@@ -1099,7 +1244,7 @@ async function _salvarFirestore(uid){
   _ignorarProximoSnapshot = true; // evita re-render desnecessário após o próprio save
   try{
     await setDoc(doc(db,'usuarios',uid),{
-      plantoes, hospitais, regras, perfil,
+      plantoes, hospitais, regras, perfil, documentos,
       tema: localStorage.getItem(DK)||'dark',
       updatedAt: new Date().toISOString()
     });
@@ -1305,7 +1450,46 @@ function popularSelectCores(corAtual){
   }
 }
 
-function atualizarValoresHora(){
+function toggleRegimeIR(){
+  const v=document.getElementById('mh-regime').value;
+  document.getElementById('mh-ir-cnpj').style.display=v==='cnpj'?'block':'none';
+  document.getElementById('mh-ir-pf').style.display=v==='pf'?'block':'none';
+}
+
+// Tabela progressiva IR 2026 — carnê-leão / autônomo
+// Fonte: Lei nº 15.270/2025 + MP 1294/2025 (vigência maio/2025)
+function calcIRPF(base){
+  // Tabela progressiva mensal 2026
+  let ir=0;
+  if(base<=2428.80)      ir=0;
+  else if(base<=2826.65) ir=base*0.075 - 182.16;
+  else if(base<=3751.05) ir=base*0.15  - 394.16;
+  else if(base<=4664.68) ir=base*0.225 - 675.49;
+  else                   ir=base*0.275 - 908.74;
+
+  // Redutor 2026 (Lei 15.270/2025): isenta até R$5.000, redução gradual até R$7.350
+  if(base<=5000)         ir=0;
+  else if(base<=7350){
+    const redutor=978.62-(0.133145*base);
+    ir=Math.max(0, ir-redutor);
+  }
+  return Math.max(0, ir);
+}
+
+function calcIR(totalLiquido, regime, aliq){
+  if(!totalLiquido || totalLiquido<=0) return 0;
+  if(regime==='empresa') return 0; // empresa gerencia
+  if(regime==='cnpj') return totalLiquido * ((aliq||0)/100);
+  if(regime==='pf') return calcIRPF(totalLiquido);
+  return 0;
+}
+
+function labelRegime(regime){
+  if(regime==='empresa') return '🏢 Empresa';
+  if(regime==='cnpj')    return '🏛 CNPJ próprio';
+  if(regime==='pf')      return '👤 Pessoa física';
+  return '';
+}
   const ds = parseFloat(document.getElementById('mh-ds').value)||0;
   const ns = parseFloat(document.getElementById('mh-ns').value)||0;
   const hd = document.getElementById('mh-hd');
@@ -1333,9 +1517,12 @@ function abrirModalHosp(id=null){
   document.getElementById('mh-df').value=h?h.df:'';
   document.getElementById('mh-ns').value=h?h.ns:'';
   document.getElementById('mh-nf').value=h?h.nf:'';
+  document.getElementById('mh-regime').value=h?.regime||'empresa';
+  document.getElementById('mh-aliq').value=h?.aliq||'';
   document.getElementById('mh-del').style.display=h?'block':'none';
   document.getElementById('modal-hosp').classList.add('open');
-  atualizarValoresHora(); // sempre recalcula ao abrir
+  atualizarValoresHora();
+  toggleRegimeIR();
 }
 function fecharModalHosp(){ document.getElementById('modal-hosp').classList.remove('open'); editHospId=null; }
 function salvarHosp(){
@@ -1351,7 +1538,9 @@ function salvarHosp(){
   // Sempre calcula hd e hn automaticamente — ignora o campo readonly
   const hd = ds > 0 ? ds/12 : 0;
   const hn = ns > 0 ? ns/12 : 0;
-  const dados={nome,cor,ds,df,ns,nf,hd,hn};
+  const regime=document.getElementById('mh-regime').value;
+  const aliq=parseFloat(document.getElementById('mh-aliq').value)||0;
+  const dados={nome,cor,ds,df,ns,nf,hd,hn,regime,aliq};
   if(editHospId){
     const h=getHosp(editHospId); if(h) Object.assign(h,dados);
   } else {
@@ -1638,8 +1827,248 @@ function gerarDatasFixo(){
 }
 
 // ═══════════════════════════════════════════════
-// NAV ANO
+// DOCUMENTOS & CERTIFICADOS
 // ═══════════════════════════════════════════════
+let documentos = [];
+let editDocId = null;
+let _docArquivoBase64 = null; // arquivo em memória durante edição
+let _docArquivoMime   = null;
+let _docArquivoNome   = null;
+
+const TIPO_ICONS = {curso:'📋',crm:'🪪',rqe:'🏅',alvara:'📄',outros:'📎'};
+const MAX_FILE_BYTES = 500 * 1024; // 500KB
+
+function diasParaVencer(dataStr){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const val  = new Date(dataStr+'T00:00:00');
+  return Math.floor((val-hoje)/(1000*60*60*24));
+}
+function statusDoc(doc){
+  if(!doc.validade) return {cls:'ok',label:'Sem vencimento'};
+  const dias = diasParaVencer(doc.validade);
+  if(dias<0)   return {cls:'vencido',label:`Vencido há ${Math.abs(dias)}d`};
+  if(dias<=30) return {cls:'alerta', label:`Vence em ${dias}d`};
+  return {cls:'ok', label:`Válido por ${dias}d`};
+}
+
+function handleDocFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const erroEl = document.getElementById('md-file-erro');
+  erroEl.style.display='none';
+
+  if(file.size > MAX_FILE_BYTES){
+    erroEl.textContent=`Arquivo muito grande: ${(file.size/1024).toFixed(0)}KB. Máximo: 500KB.`;
+    erroEl.style.display='block';
+    event.target.value='';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target.result; // data:mime;base64,...
+    const [header, b64] = result.split(',');
+    _docArquivoBase64 = b64;
+    _docArquivoMime   = file.type;
+    _docArquivoNome   = file.name;
+    mostrarPreviewArquivo(file.name, file.size, file.type);
+    // preenche nome do documento se estiver vazio
+    const nomeEl = document.getElementById('md-nome');
+    if(!nomeEl.value) nomeEl.value = file.name.replace(/\.[^.]+$/,'');
+  };
+  reader.readAsDataURL(file);
+}
+
+function mostrarPreviewArquivo(nome, size, mime){
+  const icon = mime==='application/pdf'?'📄':mime.startsWith('image')?'🖼':'📎';
+  document.getElementById('md-file-icon').textContent=icon;
+  document.getElementById('md-file-name').textContent=nome;
+  document.getElementById('md-file-size').textContent=`${(size/1024).toFixed(1)} KB`;
+  document.getElementById('md-file-preview').style.display='block';
+  document.getElementById('md-upload-label').style.opacity='0.4';
+}
+
+function removerArquivoDoc(){
+  _docArquivoBase64=null; _docArquivoMime=null; _docArquivoNome=null;
+  document.getElementById('md-file').value='';
+  document.getElementById('md-file-preview').style.display='none';
+  document.getElementById('md-upload-label').style.opacity='1';
+}
+
+function renderDocs(){
+  const list = document.getElementById('docs-list');
+  if(!list) return;
+  if(!documentos.length){
+    list.innerHTML=`<div class="empty-state">Nenhum documento cadastrado</div>`;
+    return;
+  }
+  const sorted=[...documentos].sort((a,b)=>{
+    const da=a.validade?diasParaVencer(a.validade):9999;
+    const db=b.validade?diasParaVencer(b.validade):9999;
+    return da-db;
+  });
+  list.innerHTML=sorted.map(doc=>{
+    const{cls,label}=statusDoc(doc);
+    const icon=TIPO_ICONS[doc.tipo]||'📎';
+    const temArq = !!doc.arquivo;
+    return`<div class="doc-item ${cls}" onclick="abrirModalDoc('${doc.id}')">
+      <span class="doc-icon">${icon}</span>
+      <div class="doc-info">
+        <div class="doc-nome">${doc.nome}${temArq?' 📎':''}</div>
+        <div class="doc-inst">${doc.inst||''}</div>
+      </div>
+      <div class="doc-val ${cls}">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function abrirModalDoc(id=null){
+  editDocId=id;
+  _docArquivoBase64=null; _docArquivoMime=null; _docArquivoNome=null;
+  const doc=id?documentos.find(d=>d.id===id):null;
+  document.getElementById('md-title').textContent=doc?'Editar documento':'Novo documento';
+  document.getElementById('md-tipo').value=doc?.tipo||'curso';
+  document.getElementById('md-nome').value=doc?.nome||'';
+  document.getElementById('md-inst').value=doc?.inst||'';
+  document.getElementById('md-val').value=doc?.validade||'';
+  document.getElementById('md-erro').style.display='none';
+  document.getElementById('md-file-erro').style.display='none';
+  document.getElementById('md-file').value='';
+  document.getElementById('md-file-preview').style.display='none';
+  document.getElementById('md-upload-label').style.opacity='1';
+  document.getElementById('md-del').style.display=doc?'block':'none';
+
+  // Se já tem arquivo, mostrar info e botões
+  const acoesEl=document.getElementById('md-acoes-existente');
+  if(doc?.arquivo){
+    mostrarPreviewArquivo(doc.arquivoNome||'arquivo', doc.arquivoSize||0, doc.arquivoMime||'');
+    acoesEl.style.display='block';
+  } else {
+    acoesEl.style.display='none';
+  }
+  document.getElementById('modal-doc').classList.add('open');
+}
+function fecharModalDoc(){
+  document.getElementById('modal-doc').classList.remove('open');
+  editDocId=null;
+}
+
+function salvarDoc(){
+  const nome=document.getElementById('md-nome').value.trim();
+  const erro=document.getElementById('md-erro');
+  if(!nome){ erro.textContent='Informe o nome do documento.'; erro.style.display='block'; return; }
+
+  const btn=document.getElementById('md-btn-salvar');
+  btn.textContent='Salvando...'; btn.disabled=true;
+
+  const docAtual = editDocId ? documentos.find(d=>d.id===editDocId) : null;
+  const dados={
+    tipo:      document.getElementById('md-tipo').value,
+    nome,
+    inst:      document.getElementById('md-inst').value.trim(),
+    validade:  document.getElementById('md-val').value||null,
+    // mantém arquivo anterior se não subiu novo
+    arquivo:     _docArquivoBase64 || docAtual?.arquivo || null,
+    arquivoMime: _docArquivoMime   || docAtual?.arquivoMime || null,
+    arquivoNome: _docArquivoNome   || docAtual?.arquivoNome || null,
+    arquivoSize: _docArquivoBase64 ? Math.round((_docArquivoBase64.length*3)/4) : (docAtual?.arquivoSize||0)
+  };
+  if(editDocId){
+    const d=documentos.find(x=>x.id===editDocId); if(d) Object.assign(d,dados);
+  } else {
+    documentos.push({id:uid(),...dados});
+  }
+  save();
+  btn.textContent='Salvar'; btn.disabled=false;
+  fecharModalDoc(); renderDocs(); verificarAlertas();
+}
+
+function excluirDoc(){
+  if(!editDocId||!confirm('Excluir este documento?')) return;
+  documentos=documentos.filter(d=>d.id!==editDocId);
+  save(); fecharModalDoc(); renderDocs(); verificarAlertas();
+}
+
+function verDocumento(){
+  const doc=documentos.find(d=>d.id===editDocId);
+  if(!doc?.arquivo) return;
+  const dataUrl=`data:${doc.arquivoMime};base64,${doc.arquivo}`;
+  window.open(dataUrl,'_blank');
+}
+
+function baixarDocumento(){
+  const doc=documentos.find(d=>d.id===editDocId);
+  if(!doc?.arquivo) return;
+  const dataUrl=`data:${doc.arquivoMime};base64,${doc.arquivo}`;
+  const a=document.createElement('a');
+  a.href=dataUrl; a.download=doc.arquivoNome||doc.nome;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════
+// ALERTAS
+// ═══════════════════════════════════════════════
+function fecharAlertas(){ document.getElementById('painel-alertas').style.display='none'; }
+
+function verificarAlertas(){
+  const alertas=[];
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+
+  // 1. Documentos vencidos ou vencendo em 30 dias
+  documentos.forEach(doc=>{
+    if(!doc.validade) return;
+    const dias=diasParaVencer(doc.validade);
+    if(dias<0){
+      alertas.push({tipo:'critico',emoji:'🚨',
+        titulo:`${doc.nome} — VENCIDO`,
+        sub:`Venceu há ${Math.abs(dias)} dias. Renove imediatamente.`});
+    } else if(dias<=30){
+      alertas.push({tipo:'aviso',emoji:'⚠️',
+        titulo:`${doc.nome} — vence em ${dias} dia${dias===1?'':'s'}`,
+        sub:`Validade: ${new Date(doc.validade+'T00:00:00').toLocaleDateString('pt-BR')}${doc.inst?' · '+doc.inst:''}`});
+    }
+  });
+
+  // 2. IR próximo (CNPJ próprio ou PF) — avisa 10 dias antes do vencimento de cada ciclo
+  hospitais.forEach(h=>{
+    if(!h.regime||h.regime==='empresa') return;
+    const cfg=getRegrasHosp(h.id);
+    const ciclos=gerarCiclos(cfg);
+    ciclos.forEach(c=>{
+      const diasPgto=Math.floor((c.pagamento-hoje)/(1000*60*60*24));
+      if(diasPgto<0||diasPgto>10) return;
+      const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+      const bruto=ps.reduce((a,p)=>a+p.valor,0);
+      if(bruto<=0) return;
+      const desc=bruto>0?(cfg.taxa||0):0;
+      const liq=bruto-desc;
+      const ir=calcIR(liq,h.regime,h.aliq||0);
+      if(ir<=0) return;
+      const label=h.regime==='pf'?'IRPF — carnê-leão':`IR ${h.regime==='cnpj'?'CNPJ':''}`;
+      alertas.push({tipo:'ir',emoji:'📊',
+        titulo:`${label} vence em ${diasPgto===0?'HOJE':diasPgto+' dia'+(diasPgto===1?'':'s')} — ${h.nome}`,
+        sub:`Ciclo ${fmtD(c.inicio)}–${fmtD(c.fim)} · Bruto ${brl(bruto)} · IR a recolher: ${brl(ir)}\nPagamento previsto: ${fmtD(c.pagamento)}`});
+    });
+  });
+
+  if(!alertas.length) return;
+
+  const content=document.getElementById('alertas-content');
+  content.innerHTML=alertas.map(a=>`
+    <div class="alerta-item ${a.tipo}">
+      <span class="alerta-emoji">${a.emoji}</span>
+      <div class="alerta-texto">
+        <div class="alerta-titulo">${a.titulo}</div>
+        <div class="alerta-sub">${a.sub.replace(/\n/g,'<br>')}</div>
+      </div>
+    </div>`).join('');
+
+  // Mostra badge no botão de documentos
+  const badge=alertas.length;
+  const btnDoc=document.getElementById('btn-docs-body');
+  if(btnDoc) btnDoc.textContent=`${badge > 0 ? '🔴 ' : '+'}${badge > 0 ? badge : ''}`;
+
+  document.getElementById('painel-alertas').style.display='block';
+}
 function navAno(d){ anoAtual+=d; render(); }
 
 // ═══════════════════════════════════════════════
@@ -1846,6 +2275,11 @@ function salvarRegrasHosp(hospId){
   const el=document.getElementById('rh-res-'+hospId);
   if(el) el.textContent=resumoRegra({inicio,fim,pgto,mesesPgto:meses,taxa});
   renderPrevisao();
+  // Atualiza dashboard se estiver ativo
+  if(document.getElementById('page-dash').classList.contains('active')) renderDashboard();
+  // Feedback visual no botão
+  const btns=document.querySelectorAll(`[onclick="salvarRegrasHosp('${hospId}')"]`);
+  btns.forEach(btn=>{ btn.textContent='✓ Salvo!'; setTimeout(()=>btn.textContent='✓ Salvar regras',1500); });
 }
 function getRegrasHosp(hospId){
   const r=regrasHosp[hospId];
@@ -1939,11 +2373,12 @@ function renderPrevisao(){
     painel.className='prev-hosp-regras';
     painel.id='rh-painel-'+h.id;
     painel.innerHTML=`<div class="prev-hosp-regras-titulo">Ciclo de pagamento</div>`
-      +`<div class="field"><label>Início ciclo dia</label><input type="number" id="rh-ini-${h.id}" min="1" max="28" value="${cfg.inicio}" onchange="salvarRegrasHosp('${h.id}')"></div>`
-      +`<div class="field"><label>Fim ciclo dia</label><input type="number" id="rh-fim-${h.id}" min="1" max="28" value="${cfg.fim}" onchange="salvarRegrasHosp('${h.id}')"></div>`
-      +`<div class="field"><label>Pagamento dia</label><input type="number" id="rh-pgto-${h.id}" min="1" max="28" value="${cfg.pgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
-      +`<div class="field"><label>Meses após fim</label><input type="number" id="rh-mp-${h.id}" min="1" max="3" value="${cfg.mesesPgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
-      +`<div class="field"><label>Taxa operadora (R$)</label><input type="number" id="rh-taxa-${h.id}" min="0" step="0.01" placeholder="0,00" value="${cfg.taxa||''}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="field"><label>Início ciclo dia</label><input type="number" id="rh-ini-${h.id}" min="1" max="31" value="${cfg.inicio}"></div>`
+      +`<div class="field"><label>Fim ciclo dia</label><input type="number" id="rh-fim-${h.id}" min="1" max="31" value="${cfg.fim}"></div>`
+      +`<div class="field"><label>Pagamento dia</label><input type="number" id="rh-pgto-${h.id}" min="1" max="31" value="${cfg.pgto}"></div>`
+      +`<div class="field"><label>Meses após fim</label><input type="number" id="rh-mp-${h.id}" min="1" max="3" value="${cfg.mesesPgto}"></div>`
+      +`<div class="field"><label>Taxa operadora (R$)</label><input type="number" id="rh-taxa-${h.id}" min="0" step="0.01" placeholder="0,00" value="${cfg.taxa||''}"></div>`
+      +`<button onclick="salvarRegrasHosp('${h.id}')" style="width:100%;margin-top:8px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600;box-shadow:0 4px 12px var(--accent-glow);">✓ Salvar regras</button>`
       +`<div class="prev-resumo-regra" id="rh-res-${h.id}">${resumoRegra(cfg)}</div>`;
     const hospBody=document.createElement('div');
     hospBody.className='prev-hosp-body';
@@ -1954,16 +2389,19 @@ function renderPrevisao(){
     const cicloList=document.createElement('div');
     ciclos.forEach(c=>{
       const totalBruto=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;}).reduce((a,p)=>a+p.valor,0);
-      const taxa=cfg.taxa||0;
-      const desconto=totalBruto>0?taxa:0;
-      const total=totalBruto-desconto;
+      const desconto=totalBruto>0?(cfg.taxa||0):0;
+      const totalLiq=totalBruto-desconto;
+      const ir=calcIR(totalLiq, h.regime||'empresa', h.aliq||0);
+      const total=totalLiq;
       const{status,badge,dias}=statusCiclo(c);
       const item=document.createElement('div');item.className='prev-item';
       item.style.marginBottom='4px';
       const taxaLabel=desconto>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">taxa = -${brl(desconto)}</div>`:'';
+      const irLabel=ir>0?`<div style="font-family:var(--mono);font-size:9px;color:#f5a623;margin-top:1px;">IR = -${brl(ir)} → líq. ${brl(total-ir)}</div>`
+        :(h.regime==='empresa'?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">IR gerenciado pela empresa</div>`:'');
       item.innerHTML=`<div class="prev-hdr"><span class="prev-periodo">${fmtD(c.inicio)} – ${fmtD(c.fim)}</span><span class="prev-badge ${badge}">${status}</span></div>`
         +`<div class="prev-body"><div><div class="prev-pgto">pagamento<br><strong>${fmtD(c.pagamento)}</strong></div><div class="prev-dias">${dias}</div></div>`
-        +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>${taxaLabel}`
+        +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>${taxaLabel}${irLabel}`
         +`<button class="btn-pdf" data-ini="${c.inicio.getTime()}" data-fim="${c.fim.getTime()}" data-pgto="${fmtD(c.pagamento)}" data-hosp="${h.id}">&#128196; PDF</button></div></div>`;
       cicloList.appendChild(item);
     });
@@ -2483,11 +2921,10 @@ function renderDashboard(){
   <!-- Tabela detalhada por mês — baseada em previsão de recebimento -->
   ${(()=>{
     // Monta mapa: por mês de pagamento, por hospital → {total, qtdPlantoes}
-    // estrutura: pgtoMap[mesIdx][hospId] = {total, qtd}
     const pgtoMap = Array.from({length:12}, ()=>({}));
     const pgtoTotal = Array(12).fill(0);
     const pgtoQtd   = Array(12).fill(0);
-    const hospTotais = {}; // hospId → total anual recebido
+    const hospTotais = {};
     hospitais.forEach(h=>{
       hospTotais[h.id]=0;
       const cfg=getRegrasHosp(h.id);
@@ -2496,7 +2933,9 @@ function renderDashboard(){
         if(c.pagamento.getFullYear()!==anoAtual) return;
         const mi=c.pagamento.getMonth();
         const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
-        const tot=ps.reduce((a,p)=>a+p.valor,0);
+        const totalBruto=ps.reduce((a,p)=>a+p.valor,0);
+        const desconto=totalBruto>0?(cfg.taxa||0):0;
+        const tot=totalBruto-desconto;
         const qtd=ps.length;
         if(!pgtoMap[mi][h.id]) pgtoMap[mi][h.id]={total:0,qtd:0};
         pgtoMap[mi][h.id].total+=tot;
@@ -2695,7 +3134,16 @@ window.deletarHosp         = deletarHosp;
 window.selecionarHosp      = selecionarHosp;
 window.selecionarHospModal = selecionarHospModal;
 window.validarCorHosp      = validarCorHosp;
-window.atualizarValoresHora = atualizarValoresHora;
+window.abrirModalDoc     = abrirModalDoc;
+window.fecharModalDoc    = fecharModalDoc;
+window.salvarDoc         = salvarDoc;
+window.excluirDoc        = excluirDoc;
+window.fecharAlertas     = fecharAlertas;
+window.handleDocFile     = handleDocFile;
+window.removerArquivoDoc = removerArquivoDoc;
+window.verDocumento      = verDocumento;
+window.baixarDocumento   = baixarDocumento;
+window.toggleRegimeIR      = toggleRegimeIR;
 window.abrirModalPlantao   = abrirModalPlantao;
 window.fecharModalPlantao  = fecharModalPlantao;
 window.confirmarPlantao    = confirmarPlantao;
