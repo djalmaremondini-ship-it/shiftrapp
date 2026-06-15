@@ -1,0 +1,2604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Shiftr</title>
+<meta name="description" content="Controle de plantões médicos">
+<meta name="theme-color" content="#0f0f11">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shiftr">
+<link rel="manifest" id="pwa-manifest">
+<script>
+// PWA Manifest inline
+const manifest = {
+  name: "Shiftr",
+  short_name: "Shiftr",
+  description: "Controle de plantões médicos",
+  start_url: "./",
+  display: "standalone",
+  background_color: "#0f0f11",
+  theme_color: "#7c6af7",
+  orientation: "portrait-primary",
+  icons: [
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%237c6af7'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%237c6af7'/%3E%3Ctext x='256' y='360' font-size='280' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+  ]
+};
+const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+
+// Service Worker
+if('serviceWorker' in navigator){
+  const swCode = `
+const CACHE = 'shiftr-v1';
+const ASSETS = ['./', './index.html'];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())));
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch', e => {
+  if(e.request.method !== 'GET') return;
+  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(CACHE).then(cache => cache.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
+});
+`;
+  const swBlob = new Blob([swCode], {type:'text/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+}
+</script>
+<!-- Firebase -->
+<script type="module" id="firebase-init">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDH8QXbRqYJWXfNJuPzaIZEd35MjXZZjXk",
+  authDomain: "shiftrapp-cbdc2.firebaseapp.com",
+  projectId: "shiftrapp-cbdc2",
+  storageBucket: "shiftrapp-cbdc2.firebasestorage.app",
+  messagingSenderId: "41957390765",
+  appId: "1:41957390765:web:8349c3cbaccd95f4478924"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Expor globalmente para o código principal
+window._fb = { auth, db, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot, collection };
+window._fbReady = true;
+window.dispatchEvent(new Event('fb-ready'));
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --bg:#0f0f11;
+  --surface:#18181c;
+  --surface2:#212127;
+  --surface3:#2a2a32;
+  --border:#2e2e38;
+  --border2:#3d3d4a;
+  --text:#f0eff5;
+  --text2:#9896a8;
+  --text3:#5c5a6e;
+  --accent:#7c6af7;
+  --accent2:#a594ff;
+  --accent-glow:rgba(124,106,247,.18);
+  --sun:#f5a623;
+  --moon:#6ab4f5;
+  --red:#f0506e;
+  --green:#2ec27e;
+  --radius:10px;
+  --radius-lg:16px;
+  --radius-xl:20px;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Inter',sans-serif;
+  --shadow:0 2px 16px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 40px rgba(0,0,0,.6);
+}
+body.light{
+  --bg:#f2f1f7;
+  --surface:#ffffff;
+  --surface2:#ececf3;
+  --surface3:#e2e1ec;
+  --border:#d5d4e0;
+  --border2:#bbbacb;
+  --text:#1a1926;
+  --text2:#6b6882;
+  --text3:#a8a6be;
+  --accent:#5b47e8;
+  --accent2:#7c6af7;
+  --accent-glow:rgba(91,71,232,.12);
+  --shadow:0 2px 12px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.14);
+}
+
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+/* ── LAYOUT ── */
+.layout{display:flex;min-height:100vh;}
+
+/* ══════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════ */
+.sidebar{
+  width:280px;min-width:280px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10;
+}
+
+.sb-head{
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
+}
+.sb-logo{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent2);margin-bottom:14px;
+  display:flex;align-items:center;gap:7px;
+}
+.sb-logo::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 8px var(--accent);}
+.sb-head-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.ano-nav{display:flex;align-items:center;gap:8px;}
+.ano-nav span{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);letter-spacing:-.02em;}
+
+.icon-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;width:30px;height:30px;cursor:pointer;
+  color:var(--text2);font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.icon-btn:hover{background:var(--surface3);border-color:var(--border2);color:var(--text);}
+.icon-btn:active{transform:scale(.93);}
+
+.page-nav{display:flex;gap:3px;background:var(--surface2);border-radius:var(--radius);padding:3px;border:1px solid var(--border);}
+.page-btn{
+  flex:1;font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.07em;padding:7px 5px;border:none;
+  border-radius:7px;background:transparent;color:var(--text3);
+  cursor:pointer;transition:all .18s;
+}
+.page-btn.active{
+  background:var(--accent);color:#fff;
+  box-shadow:0 2px 12px rgba(124,106,247,.4);
+}
+
+.sb-sec{padding:14px 18px;border-bottom:1px solid var(--border);}
+.sb-title{
+  font-family:var(--mono);font-size:8px;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--text3);margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sb-toggle{background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0;line-height:1;transition:color .12s;}
+.sb-toggle:hover{color:var(--accent2);}
+.sb-collapse{overflow:hidden;}
+
+/* ── HOSPITAL CHIPS ── */
+.hosp-list{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+.hosp-chip{
+  display:flex;align-items:center;gap:9px;padding:9px 11px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;background:var(--surface2);
+}
+.hosp-chip:hover{border-color:var(--border2);background:var(--surface3);}
+.hosp-chip.selected{background:var(--surface3);border-width:1.5px;}
+.hosp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.hosp-name{font-size:13px;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.hosp-edit-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px;transition:color .12s;flex-shrink:0;line-height:1;}
+.hosp-edit-btn:hover{color:var(--accent2);}
+.btn-add-hosp{
+  width:100%;font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.07em;padding:9px;background:transparent;
+  border:1px dashed var(--border2);border-radius:var(--radius);
+  cursor:pointer;color:var(--text3);transition:all .15s;
+}
+.btn-add-hosp:hover{background:var(--surface2);color:var(--accent2);border-color:var(--accent);}
+
+/* ── TURNO SELECTOR ── */
+.turno-group{display:flex;gap:4px;margin-bottom:10px;}
+.turno-btn{
+  flex:1;font-family:var(--mono);font-size:10px;padding:8px 4px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface2);color:var(--text3);cursor:pointer;
+  transition:all .15s;text-align:center;
+}
+.turno-btn:hover{background:var(--surface3);color:var(--text2);}
+.turno-btn.active{background:var(--surface3);color:var(--text);border-color:var(--border2);}
+.turno-custom{display:none;gap:7px;align-items:center;margin-bottom:10px;}
+.turno-custom.show{display:flex;}
+.turno-custom input{
+  flex:1;font-family:var(--mono);font-size:12px;padding:6px 9px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);outline:none;min-width:0;
+}
+.turno-custom input:focus{border-color:var(--accent);}
+.turno-custom span{font-family:var(--mono);font-size:11px;color:var(--text3);}
+
+/* ── METRICS ── */
+.metric-col{display:flex;flex-direction:column;gap:5px;}
+.metric{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 11px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.metric-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);}
+.metric-value{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent2);}
+
+.empty-state{font-size:12px;color:var(--text3);padding:10px;text-align:center;font-family:var(--mono);}
+
+/* ── MINI CAL ── */
+.mini-range-wrap{display:flex;flex-direction:column;gap:7px;}
+.mini-range-labels{display:flex;justify-content:space-between;gap:6px;}
+.mini-range-lbl{
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+  background:var(--surface2);border-radius:var(--radius);
+  padding:5px 8px;flex:1;text-align:center;border:1px solid var(--border);
+  transition:all .15s;
+}
+.mini-range-lbl.set{color:var(--accent2);border-color:var(--accent);}
+.mini-cal-nav{display:flex;align-items:center;justify-content:space-between;}
+.mini-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-top:6px;}
+.mini-cal-dow span{font-family:var(--mono);font-size:8px;color:var(--text3);text-align:center;padding:2px 0;}
+.mini-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:3px;}
+.mini-day{font-family:var(--mono);font-size:10px;text-align:center;padding:4px 2px;border-radius:5px;cursor:pointer;color:var(--text2);transition:all .1s;border:1px solid transparent;}
+.mini-day:hover{background:var(--surface3);color:var(--text);}
+.mini-day.empty{cursor:default;visibility:hidden;}
+.mini-day.today{border-color:var(--accent);color:var(--accent2);}
+.mini-day.in-range{background:var(--accent-glow);}
+.mini-day.range-start,.mini-day.range-end{background:var(--accent);color:#fff;border-color:var(--accent);}
+.mini-day.has-plantao::after{content:'';display:block;width:3px;height:3px;border-radius:50%;background:var(--accent2);margin:1px auto 0;}
+.btn-sm{
+  width:100%;margin-top:6px;font-family:var(--mono);font-size:9px;
+  text-transform:uppercase;letter-spacing:.06em;padding:8px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);cursor:pointer;color:var(--text2);transition:all .15s;
+}
+.btn-sm:hover{background:var(--surface3);border-color:var(--border2);color:var(--text);}
+.sum-result{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent2);margin-top:8px;display:none;}
+.sum-error{font-family:var(--mono);font-size:10px;color:var(--red);margin-top:5px;display:none;}
+
+/* ── PREVISÃO ── */
+.prev-list{display:flex;flex-direction:column;gap:6px;}
+.prev-item{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface2);}
+.prev-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--surface3);}
+.prev-periodo{font-family:var(--mono);font-size:9px;color:var(--text3);}
+.prev-badge{font-family:var(--mono);font-size:8px;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.04em;}
+.badge-pago{background:rgba(46,194,126,.15);color:var(--green);}
+.badge-aguard{background:rgba(245,166,35,.12);color:var(--sun);}
+.badge-aberto{background:rgba(124,106,247,.12);color:var(--accent2);}
+.badge-parcial{background:rgba(106,180,245,.12);color:var(--moon);}
+.prev-body{padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:4px;}
+.prev-pgto{font-family:var(--mono);font-size:10px;color:var(--text2);}
+.prev-pgto strong{color:var(--text);font-size:11px;}
+.prev-val{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;text-align:right;}
+.prev-val.parcial{color:var(--moon);}
+.prev-dias{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px;}
+.btn-pdf{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;background:none;border:1px solid var(--border2);border-radius:5px;cursor:pointer;color:var(--text3);transition:all .12s;white-space:nowrap;}
+.btn-pdf:hover{background:var(--surface3);color:var(--text);border-color:var(--accent);}
+
+/* ── PERFIL ── */
+.perfil-avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:600;color:#fff;
+  cursor:pointer;flex-shrink:0;transition:opacity .15s;
+  box-shadow:0 0 16px var(--accent-glow);
+}
+.perfil-avatar:hover{opacity:.85;}
+.perfil-avatar.sem-perfil{background:var(--surface2);color:var(--text3);box-shadow:none;border:1px dashed var(--border2);}
+.perfil-nome{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+.perfil-esp{font-family:var(--mono);font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;margin-top:1px;}
+
+/* ── PREV POR HOSPITAL ── */
+.prev-hosp-block{margin-bottom:14px;}
+.prev-hosp-hdr{display:flex;align-items:center;gap:7px;margin-bottom:6px;cursor:pointer;user-select:none;}
+.prev-hosp-hdr:hover .prev-hosp-nome{color:var(--text);}
+.prev-hosp-toggle{background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:0;margin-left:auto;transition:color .12s;flex-shrink:0;}
+.prev-hosp-toggle:hover{color:var(--accent2);}
+.prev-hosp-body{overflow:hidden;}
+.prev-hosp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.prev-hosp-nome{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text2);flex:1;letter-spacing:.03em;}
+.prev-hosp-regras-btn{font-family:var(--mono);font-size:8px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;color:var(--text3);transition:all .12s;white-space:nowrap;}
+.prev-hosp-regras-btn:hover{background:var(--surface2);color:var(--text2);}
+.prev-hosp-regras-btn.ativo{background:var(--surface2);color:var(--text);border-color:var(--border2);}
+.prev-hosp-regras{display:none;background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;border:1px solid var(--border);}
+.prev-hosp-regras.open{display:block;}
+.prev-hosp-regras-titulo{font-family:var(--mono);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.prev-hosp-regras .field{margin-bottom:6px;}
+.prev-hosp-regras .field:last-of-type{margin-bottom:0;}
+.prev-hosp-regras label{font-size:10px;min-width:90px;color:var(--text2);}
+.prev-hosp-regras input[type=number]{font-size:11px;padding:3px 7px;width:54px;flex:none;}
+.prev-resumo-regra{font-family:var(--mono);font-size:9px;color:var(--accent2);margin-top:8px;line-height:1.6;padding:5px 8px;background:var(--surface);border-radius:5px;border:1px solid var(--border);}
+
+/* ── ACTIONS ── */
+.action-row{display:flex;gap:6px;}
+.btn-action{
+  flex:1;font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.06em;padding:9px 4px;border-radius:var(--radius);
+  border:1px solid var(--border);cursor:pointer;transition:all .15s;
+  background:var(--surface2);color:var(--text2);
+}
+.btn-action:hover{background:var(--surface3);border-color:var(--border2);color:var(--text);}
+.btn-action.danger:hover{background:rgba(240,80,110,.1);border-color:var(--red);color:var(--red);}
+
+/* ── LEGEND ── */
+.legend{display:flex;flex-wrap:wrap;gap:6px;}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.leg-dot{width:10px;height:10px;border-radius:3px;border:1px solid;flex-shrink:0;}
+
+/* ══════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════ */
+.main-content{flex:1;overflow-y:auto;background:var(--bg);}
+
+/* ── TOPBAR ── */
+.main-topbar{
+  position:sticky;top:0;z-index:50;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+  padding:14px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;
+  backdrop-filter:blur(12px);
+}
+.year-label{
+  font-family:var(--mono);font-size:11px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--text3);
+}
+
+/* ── PÁGINAS ── */
+.page{display:none;flex:1;flex-direction:column;}
+.page.active{display:flex;}
+
+/* ── MONTHS GRID → 1 coluna mobile-first ── */
+.months-grid{
+  display:flex;flex-direction:column;
+  gap:0;
+  padding:0 0 80px;
+}
+
+/* ── MONTH CARD ── */
+.month-card{
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:20px 20px 16px;
+  transition:background .15s;
+  scroll-margin-top:56px;
+}
+.month-card:first-child{border-top:1px solid var(--border);}
+.month-card.current-month{background:var(--surface);}
+.month-card.current-month .mc-title{color:var(--accent2);}
+
+.mc-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:8px;}
+.mc-title{
+  font-family:var(--mono);font-size:18px;font-weight:600;
+  color:var(--text);letter-spacing:-.02em;line-height:1;
+}
+.mc-month-num{
+  font-family:var(--mono);font-size:11px;color:var(--text3);
+  margin-top:3px;display:block;
+}
+.mc-totals{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.mc-hosp-line{font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:4px;font-weight:500;}
+.mc-hosp-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.mc-total-sum{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent2);}
+
+.mc-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;}
+.mc-dow-cell{
+  font-family:var(--mono);font-size:9px;color:var(--text3);
+  text-align:center;padding:4px 0;text-transform:uppercase;letter-spacing:.04em;
+}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+
+.mc-day{
+  border:1px solid var(--border);border-radius:8px;
+  min-height:56px;padding:5px 5px 4px;
+  cursor:pointer;transition:all .12s;
+  position:relative;background:var(--surface2);overflow:hidden;
+}
+.mc-day:hover{border-color:var(--accent);background:var(--surface3);transform:translateY(-1px);box-shadow:0 4px 14px rgba(124,106,247,.15);}
+.mc-day:active{transform:scale(.96);}
+.mc-day.mc-empty{cursor:default;border-color:transparent;background:transparent;transform:none!important;box-shadow:none!important;}
+.mc-day.mc-today{border-color:var(--accent);border-width:1.5px;box-shadow:0 0 0 2px var(--accent-glow);}
+.mc-day.mc-weekend{background:var(--surface);}
+.mc-day.mc-weekend .mc-dnum{color:var(--text3);}
+.mc-dnum{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  color:var(--text2);line-height:1;position:relative;z-index:4;
+}
+
+/* Plantões no dia — metades coloridas */
+.mc-halves{position:absolute;inset:0;border-radius:7px;overflow:hidden;display:flex;}
+.mc-half{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;opacity:.92;gap:2px;}
+.mc-half-icon{font-size:14px;line-height:1;}
+.mc-half-lbl{font-family:var(--mono);font-size:7px;font-weight:600;opacity:.85;letter-spacing:.02em;}
+.mc-divider{width:1.5px;background:rgba(255,255,255,.3);position:absolute;left:50%;top:8px;bottom:8px;border-radius:1px;z-index:3;}
+.mc-half-full{position:absolute;inset:0;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:.92;}
+.mc-dnum{position:relative;z-index:4;}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;align-items:flex-end;justify-content:center;padding:0;}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--surface);
+  border-radius:var(--radius-xl) var(--radius-xl) 0 0;
+  border:1px solid var(--border);border-bottom:none;
+  padding:24px 20px 32px;
+  width:100%;max-width:480px;max-height:92vh;overflow-y:auto;
+  box-shadow:var(--shadow-lg);
+  animation:slideUp .22s cubic-bezier(.4,0,.2,1);
+}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-drag{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 18px;}
+.modal-title{
+  font-family:var(--mono);font-size:15px;font-weight:600;
+  margin-bottom:18px;color:var(--text);letter-spacing:-.01em;
+}
+.modal-field{margin-bottom:12px;}
+.modal-field label{
+  display:block;font-family:var(--mono);font-size:9px;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px;
+}
+.modal-field input,.modal-field select{
+  width:100%;font-family:var(--mono);font-size:13px;padding:10px 12px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);outline:none;
+  transition:border-color .15s;
+}
+.modal-field input:focus,.modal-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
+.modal-actions{display:flex;gap:8px;margin-top:18px;}
+.btn-primary{
+  flex:1;font-family:var(--mono);font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;padding:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border:none;border-radius:var(--radius);cursor:pointer;
+  transition:opacity .15s;font-weight:600;
+  box-shadow:0 4px 16px rgba(124,106,247,.35);
+}
+.btn-primary:hover{opacity:.88;}
+.btn-primary:active{transform:scale(.97);}
+.btn-secondary{
+  flex:1;font-family:var(--mono);font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;padding:12px;background:var(--surface2);
+  color:var(--text2);border:1px solid var(--border);
+  border-radius:var(--radius);cursor:pointer;transition:all .15s;
+}
+.btn-secondary:hover{background:var(--surface3);border-color:var(--border2);color:var(--text);}
+.btn-danger-sm{
+  font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  padding:7px 12px;background:none;color:var(--red);
+  border:1px solid rgba(240,80,110,.35);border-radius:var(--radius);
+  cursor:pointer;margin-top:10px;width:100%;transition:all .15s;letter-spacing:.05em;
+}
+.btn-danger-sm:hover{background:rgba(240,80,110,.1);border-color:var(--red);}
+
+/* Hospital picker no modal */
+.hosp-picker{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;}
+.hosp-pick-item{
+  display:flex;align-items:center;gap:11px;padding:11px 13px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;background:var(--surface2);
+}
+.hosp-pick-item:hover{border-color:var(--border2);background:var(--surface3);}
+.hosp-pick-item.selected{background:var(--surface3);box-shadow:0 0 0 2px var(--accent-glow);}
+.hosp-pick-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.hosp-pick-info{flex:1;}
+.hosp-pick-name{font-size:13px;font-weight:600;color:var(--text);}
+.hosp-pick-val{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;}
+.valor-preview{
+  font-family:var(--mono);font-size:12px;color:var(--accent2);
+  font-weight:600;margin-top:5px;min-height:18px;
+  padding:6px 10px;background:var(--accent-glow);
+  border-radius:6px;border:1px solid rgba(124,106,247,.2);
+}
+
+/* ── MOBILE TOPBAR ── */
+.topbar-mobile{
+  display:none;position:sticky;top:0;z-index:100;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:12px 16px;align-items:center;justify-content:space-between;gap:10px;
+  backdrop-filter:blur(12px);
+}
+.tb-logo{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);
+  display:flex;align-items:center;gap:6px;
+}
+.tb-logo::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);display:inline-block;}
+.tb-right{display:flex;align-items:center;gap:6px;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;}
+.sidebar-overlay.open{display:block;}
+
+/* ── REGRAS ── */
+.regras-painel{display:none;margin-bottom:10px;background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border);}
+.field{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.field:last-child{margin-bottom:0;}
+.field label{font-family:var(--mono);font-size:10px;color:var(--text2);min-width:90px;}
+.field input[type=number]{
+  font-family:var(--mono);font-size:12px;flex:1;padding:6px 8px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);outline:none;
+}
+.field input[type=number]:focus{border-color:var(--accent);}
+
+/* ── DASHBOARD ── */
+.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px;}
+.dash-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;}
+.dash-card-title{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:12px;}
+.dash-big-val{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--accent2);line-height:1;}
+.dash-sub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:5px;}
+.dash-hosp-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border);}
+.dash-hosp-row:last-child{border-bottom:none;}
+.dash-hosp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dash-hosp-nome{font-size:12px;flex:1;color:var(--text2);}
+.dash-hosp-val{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text);}
+.dash-hosp-pct{font-family:var(--mono);font-size:10px;color:var(--text3);min-width:36px;text-align:right;}
+.dash-bar-wrap{margin-top:6px;}
+.dash-bar-bg{background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;margin-top:4px;}
+.dash-bar-fill{height:100%;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1);}
+.month-bars{display:flex;align-items:flex-end;gap:4px;height:160px;border-bottom:1px solid var(--border);margin-bottom:6px;padding-top:28px;}
+.month-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative;}
+.month-bar-col{width:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;border-radius:4px 4px 0 0;overflow:hidden;}
+.month-bar-seg{width:100%;min-height:2px;border-radius:4px 4px 0 0;transition:height .5s;}
+.month-bar-seg:hover{filter:brightness(1.2);}
+.month-bar-lbl{font-family:var(--mono);font-size:7px;color:var(--text3);margin-top:5px;text-align:center;}
+.month-bar-val{font-family:var(--mono);font-size:8px;font-weight:600;color:var(--text2);position:absolute;bottom:100%;left:50%;transform:translateX(-50%) translateY(-2px);white-space:nowrap;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 5px;pointer-events:none;}
+.dash-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.dash-table th{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:7px 6px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dash-table td{padding:7px 6px;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;overflow:hidden;text-overflow:ellipsis;}
+.dash-table tr:last-child td{border-bottom:none;}
+.dash-table tr:hover td{background:var(--surface2);}
+.tag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:10px;font-weight:600;}
+.tag-diurno{background:rgba(245,166,35,.15);color:var(--sun);}
+.tag-noturno{background:rgba(106,180,245,.15);color:var(--moon);}
+.tag-custom{background:var(--surface2);color:var(--text3);}
+.dash-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.dash-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .topbar-mobile{display:flex;}
+  .layout{flex-direction:column;}
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;z-index:300;
+    transform:translateX(-100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    height:100vh;width:290px;min-width:290px;
+    box-shadow:6px 0 32px rgba(0,0,0,.4);
+  }
+  .sidebar.open{transform:translateX(0);}
+  .main-content{padding:0;}
+  .main-topbar{display:none;}
+  .month-card{padding:16px 14px 14px;}
+  .mc-day{min-height:48px;}
+  .mc-title{font-size:16px;}
+  .mc-total-sum{font-size:13px;}
+  .dash-grid{grid-template-columns:1fr 1fr;}
+  .dash-2col{grid-template-columns:1fr;}
+  .dash-3col{grid-template-columns:1fr;}
+  .dash-big-val{font-size:20px;}
+  .dash-card{padding:14px;}
+  .dash-table th,.dash-table td{padding:6px 7px;font-size:11px;}
+  #page-dash{padding:14px;}
+}
+@media(max-width:480px){
+  .dash-grid{grid-template-columns:1fr;}
+  .mc-day{min-height:42px;}
+  .modal{border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+}
+/* ══════════════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════════════ */
+#login-screen{
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:var(--bg);
+  flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;
+}
+#login-screen.visible{display:flex;}
+.login-card{
+  width:100%;max-width:380px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:36px 28px;
+  box-shadow:var(--shadow-lg);
+  display:flex;flex-direction:column;align-items:center;gap:0;
+}
+.login-logo{
+  width:64px;height:64px;border-radius:18px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:28px;font-weight:700;color:#fff;
+  box-shadow:0 8px 24px var(--accent-glow);
+  margin-bottom:20px;letter-spacing:-.03em;
+}
+.login-title{
+  font-family:var(--mono);font-size:22px;font-weight:700;
+  color:var(--text);letter-spacing:-.02em;margin-bottom:6px;
+}
+.login-sub{
+  font-size:13px;color:var(--text3);text-align:center;
+  margin-bottom:32px;line-height:1.5;
+}
+.btn-google{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:14px 20px;border-radius:var(--radius);
+  background:var(--surface2);border:1px solid var(--border2);
+  cursor:pointer;transition:all .18s;
+  font-family:var(--sans);font-size:14px;font-weight:500;color:var(--text);
+}
+.btn-google:hover{background:var(--surface3);border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 16px var(--accent-glow);}
+.btn-google:active{transform:scale(.97);}
+.btn-google svg{width:20px;height:20px;flex-shrink:0;}
+.login-footer{
+  margin-top:24px;font-size:11px;color:var(--text3);text-align:center;line-height:1.6;
+}
+.login-error{
+  margin-top:14px;padding:10px 14px;border-radius:var(--radius);
+  background:rgba(240,80,110,.1);border:1px solid rgba(240,80,110,.3);
+  color:var(--red);font-size:12px;font-family:var(--mono);
+  display:none;text-align:center;width:100%;
+}
+.login-loading{
+  display:none;flex-direction:column;align-items:center;gap:12px;margin-top:14px;
+}
+.login-loading.show{display:flex;}
+.spinner{
+  width:24px;height:24px;border:2px solid var(--border2);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.sync-bar{
+  position:fixed;bottom:16px;right:16px;z-index:999;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 14px;
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+  display:none;align-items:center;gap:8px;
+  box-shadow:var(--shadow);
+}
+.sync-bar.show{display:flex;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+</style>
+</head>
+<body>
+
+<!-- TELA DE LOGIN -->
+<div id="login-screen" class="visible">
+  <div class="login-card">
+    <div class="login-logo">S</div>
+    <div class="login-title">Shiftr</div>
+    <div class="login-sub">Controle inteligente de plantões médicos.<br>Entre com sua conta Google para continuar.</div>
+    <button class="btn-google" onclick="loginGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Entrar com Google
+    </button>
+    <div class="login-loading" id="login-loading">
+      <div class="spinner"></div>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">Aguardando autenticação...</span>
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-footer">Seus dados são privados e criptografados.<br>Apenas você tem acesso às suas informações.</div>
+  </div>
+</div>
+
+<!-- BARRA DE SYNC -->
+<div class="sync-bar" id="sync-bar">
+  <div class="sync-dot"></div>
+  <span id="sync-msg">Sincronizando...</span>
+</div>
+
+<!-- Mobile topbar -->
+<div class="topbar-mobile">
+  <span class="tb-logo">Shiftr</span>
+  <div class="tb-right">
+    <button class="icon-btn" onclick="toggleDark()" id="btn-dark-m">☀</button>
+    <div id="tb-avatar" class="perfil-avatar sem-perfil" onclick="abrirModalPerfil()" title="Perfil" style="width:30px;height:30px;font-size:11px;">&#128100;</div>
+    <button class="icon-btn" onclick="abrirMenu()">&#9776;</button>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sb-overlay" onclick="fecharMenu()"></div>
+
+<!-- Modal hospital -->
+<div class="modal-overlay" id="modal-hosp">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="mh-title">Novo hospital</div>
+    <div class="modal-field"><label>Nome</label><input type="text" id="mh-nome" placeholder="Ex: Hospital das Clínicas"></div>
+    <div class="modal-field">
+      <label>Cor</label>
+      <select id="mh-cor" onchange="validarCorHosp()" style="font-family:var(--mono);font-size:12px;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;width:100%;cursor:pointer;"></select>
+      <div id="mh-cor-aviso" style="font-family:var(--mono);font-size:10px;color:#c0392b;margin-top:4px;display:none">Cor já usada por outro hospital.</div>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Valores plantão 12h (R$)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="modal-field"><label>☀ Diurno — semana</label><input type="number" id="mh-ds" min="0" step="10" placeholder="0,00"></div>
+      <div class="modal-field"><label>☀ Diurno — FDS</label><input type="number" id="mh-df" min="0" step="10" placeholder="0,00"></div>
+      <div class="modal-field"><label>☽ Noturno — semana</label><input type="number" id="mh-ns" min="0" step="10" placeholder="0,00"></div>
+      <div class="modal-field"><label>☽ Noturno — FDS</label><input type="number" id="mh-nf" min="0" step="10" placeholder="0,00"></div>
+    </div>
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Valor hora — plantões parciais (R$)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="modal-field"><label>☀ Diurno</label><input type="number" id="mh-hd" min="0" step="1" placeholder="auto"></div>
+      <div class="modal-field"><label>☽ Noturno</label><input type="number" id="mh-hn" min="0" step="1" placeholder="auto"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModalHosp()">Cancelar</button>
+      <button class="btn-primary" onclick="salvarHosp()">Salvar</button>
+    </div>
+    <button class="btn-danger-sm" id="mh-del" style="display:none" onclick="deletarHosp()">Excluir hospital</button>
+  </div>
+</div>
+
+<!-- Modal plantão -->
+<div class="modal-overlay" id="modal-plantao">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="mp-title">Registrar plantão</div>
+
+    <!-- Plantões já existentes neste dia -->
+    <div id="mp-existentes-wrap" style="display:none;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Plantões neste dia</div>
+      <div id="mp-existentes"></div>
+      <div style="border-top:1px solid var(--border);margin:10px 0 10px;"></div>
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px;">Adicionar novo plantão</div>
+    </div>
+
+    <div class="modal-field"><label>Hospital</label>
+      <div class="hosp-picker" id="mp-hosp-picker"></div>
+    </div>
+    <div class="modal-field"><label>Turno</label>
+      <div class="turno-group">
+        <button class="turno-btn active" id="tp-diurno" onclick="setTurnoModal('Diurno')">☀ Diurno 7–19</button>
+        <button class="turno-btn" id="tp-noturno" onclick="setTurnoModal('Noturno')">☽ Noturno 19–7</button>
+        <button class="turno-btn" id="tp-custom" onclick="setTurnoModal('Custom')">&#9997; Custom</button>
+      </div>
+    </div>
+    <div class="turno-custom" id="tc-custom">
+      <input type="time" id="tc-ini" value="07:00">
+      <span>até</span>
+      <input type="time" id="tc-fim" value="19:00">
+    </div>
+    <div class="turno-custom" id="tc-valor-custom" style="flex-direction:column;gap:4px;">
+      <div style="display:flex;align-items:center;gap:8px;width:100%;">
+        <label style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);white-space:nowrap;">Valor (R$)</label>
+        <input type="number" id="tc-valor" min="0" step="1" placeholder="calculado auto" style="flex:1;font-family:var(--mono);font-size:13px;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;" oninput="atualizarValPreview()">
+      </div>
+    </div>
+    <div class="valor-preview" id="mp-val-preview"></div>
+
+    <!-- Plantão Fixo -->
+    <div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);" id="mp-fixo-wrap">
+      <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="togglePlantaoFixo()">
+        <div id="mp-fixo-toggle" style="width:32px;height:18px;border-radius:9px;background:var(--border2);position:relative;transition:background .2s;flex-shrink:0;">
+          <div id="mp-fixo-knob" style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+        </div>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text);">Plantão fixo</span>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-left:auto;">repetir todo ano</span>
+      </div>
+      <div id="mp-fixo-opcoes" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+        <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:7px;">Repetir toda semana em</div>
+        <div id="mp-dias-semana" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:7px;">Período de vigência</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+          <div class="modal-field" style="margin:0"><label style="font-size:9px;">De</label><input type="date" id="mp-fixo-ini" style="font-family:var(--mono);font-size:11px;"></div>
+          <div class="modal-field" style="margin:0"><label style="font-size:9px;">Até</label><input type="date" id="mp-fixo-fim" style="font-family:var(--mono);font-size:11px;"></div>
+        </div>
+        <div id="mp-fixo-preview" style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:6px;min-height:16px;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModalPlantao()">Cancelar</button>
+      <button class="btn-primary" id="mp-btn-add" onclick="confirmarPlantao()">+ Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal perfil -->
+<div class="modal-overlay" id="modal-perfil">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div id="mp-avatar-preview" style="width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;font-weight:500;color:#fff;flex-shrink:0;">?</div>
+      <div><div class="modal-title" style="margin-bottom:2px">Meu perfil</div><div style="font-family:var(--mono);font-size:9px;color:var(--text3)">Dados salvos localmente</div></div>
+    </div>
+    <div class="modal-field"><label>Nome completo</label><input type="text" id="pf-nome" placeholder="Dr. João Silva" oninput="atualizarAvatarPreview()"></div>
+    <div class="modal-field"><label>Especialidade</label><input type="text" id="pf-esp" placeholder="Cardiologia"></div>
+    <div class="modal-field"><label>E-mail</label><input type="email" id="pf-email" placeholder="joao@email.com"></div>
+    <div class="modal-field">
+      <label>Senha</label>
+      <div style="position:relative;">
+        <input type="password" id="pf-senha" placeholder="••••••••" style="width:100%;padding-right:36px;">
+        <button onclick="toggleSenhaPerfil()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;" id="btn-toggle-senha">&#128065;</button>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Confirmar senha</label>
+      <input type="password" id="pf-senha2" placeholder="••••••••">
+    </div>
+    <div id="pf-erro" style="font-family:var(--mono);font-size:10px;color:#c0392b;margin-top:-4px;margin-bottom:8px;display:none;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModalPerfil()">Cancelar</button>
+      <button class="btn-primary" onclick="salvarPerfil()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sb-head">
+      <div class="sb-head-row">
+        <div class="sb-logo">Shiftr</div>
+        <div style="display:flex;gap:5px;align-items:center">
+          <button class="icon-btn" onclick="toggleDark()" id="btn-dark">☀</button>
+          <div id="sb-avatar" class="perfil-avatar sem-perfil" onclick="abrirModalPerfil()" title="Perfil">&#128100;</div>
+        </div>
+      </div>
+      <div id="sb-perfil-info" style="display:none;margin-top:8px;display:none;align-items:center;gap:8px;padding:6px 0;border-top:.5px solid var(--border);cursor:pointer;" onclick="abrirModalPerfil()">
+        <div>
+          <div class="perfil-nome" id="sb-perfil-nome"></div>
+          <div class="perfil-esp" id="sb-perfil-esp"></div>
+        </div>
+      </div>
+      <div class="ano-nav">
+        <button class="icon-btn" onclick="navAno(-1)">&#8249;</button>
+        <span id="ano-display">2026</span>
+        <button class="icon-btn" onclick="navAno(1)">&#8250;</button>
+      </div>
+      <div class="page-nav" style="margin-top:10px;">
+        <button class="page-btn active" id="nav-cal" onclick="setPage('cal')">&#128197; Cal.</button>
+        <button class="page-btn" id="nav-dash" onclick="setPage('dash')">&#9632; Dashboard</button>
+      </div>
+    </div>
+
+    <!-- Hospitais -->
+    <div class="sb-sec">
+      <div class="sb-title">Hospitais</div>
+      <div class="hosp-list" id="hosp-list"></div>
+      <button class="btn-add-hosp" onclick="abrirModalHosp()">+ Adicionar hospital</button>
+    </div>
+
+    <!-- Resumo anual -->
+    <div class="sb-sec">
+      <div class="sb-title">Resumo anual <button class="sb-toggle" id="btn-resumo-body" onclick="toggleSec('resumo-body',this)">+</button></div>
+      <div class="sb-collapse" id="resumo-body" style="display:none">
+        <div class="metric-col" id="resumo-metrics"></div>
+      </div>
+    </div>
+
+    <!-- Soma por intervalo -->
+    <div class="sb-sec">
+      <div class="sb-title">Soma por intervalo</div>
+      <!-- inputs hidden que guardam o valor selecionado -->
+      <input type="hidden" id="dt-ini">
+      <input type="hidden" id="dt-fim">
+      <!-- mini calendários -->
+      <div class="mini-range-wrap">
+        <div class="mini-range-labels">
+          <div class="mini-range-lbl" id="lbl-ini">Início: —</div>
+          <div class="mini-range-lbl" id="lbl-fim">Fim: —</div>
+        </div>
+        <div class="mini-cal-nav">
+          <button class="icon-btn" onclick="miniNavMes(-1)">&#8249;</button>
+          <span id="mini-mes-label" style="font-family:var(--mono);font-size:11px;font-weight:500;"></span>
+          <button class="icon-btn" onclick="miniNavMes(1)">&#8250;</button>
+        </div>
+        <div class="mini-cal-dow">
+          <span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span>
+        </div>
+        <div class="mini-cal-grid" id="mini-cal-grid"></div>
+      </div>
+      <button class="btn-sm" onclick="somarIntervalo()" style="margin-top:8px">Calcular</button>
+      <button class="btn-sm" onclick="limparMiniCal()" style="margin-top:4px;color:var(--text3)">Limpar seleção</button>
+      <div class="sum-result" id="sum-result"></div>
+      <div class="sum-error" id="sum-error"></div>
+    </div>
+
+    <!-- Previsão -->
+    <div class="sb-sec">
+      <div class="sb-title">
+        Previsão de recebimentos
+        <button class="sb-toggle" id="btn-prev-body" onclick="toggleSec('prev-body',this)">+</button>
+      </div>
+      <div class="sb-collapse" id="prev-body" style="display:none">
+        <div class="prev-list" id="prev-list"></div>
+      </div>
+    </div>
+
+    <!-- Logout -->
+    <div class="sb-sec" style="margin-top:auto;">
+      <button class="btn-action danger" onclick="logout()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;">
+        <span>&#8594;</span> Sair da conta
+      </button>
+    </div>
+
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <!-- Topbar desktop -->
+    <div class="main-topbar">
+      <div class="year-label" id="year-label">— 2026</div>
+      <div class="page-nav" style="width:auto;min-width:200px;">
+        <button class="page-btn active" id="nav-cal" onclick="setPage('cal')">&#128197; Calendário</button>
+        <button class="page-btn" id="nav-dash" onclick="setPage('dash')">&#9632; Dashboard</button>
+      </div>
+    </div>
+    <!-- Página: Calendário -->
+    <div class="page active" id="page-cal">
+      <div class="months-grid" id="months-grid"></div>
+    </div>
+    <!-- Página: Dashboard -->
+    <div class="page" id="page-dash" style="padding:20px;">
+      <div class="year-label" id="dash-label" style="margin-bottom:16px;">Dashboard — 2026</div>
+      <div id="dash-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════
+const DK = 'shiftr_tema';
+let plantoes   = [];
+let hospitais  = [];
+let regras     = {};  // regras por hospId, unificadas
+
+// ═══════════════════════════════════════════════
+// FIREBASE AUTH & FIRESTORE
+// ═══════════════════════════════════════════════
+let _currentUser = null;
+let _saveTimer   = null;
+
+function showSyncBar(msg, autoHide=true){
+  const bar=document.getElementById('sync-bar');
+  const txt=document.getElementById('sync-msg');
+  if(txt) txt.textContent=msg||'Sincronizando...';
+  if(bar) bar.classList.add('show');
+  if(autoHide) setTimeout(()=>bar&&bar.classList.remove('show'), 2200);
+}
+
+function loginGoogle(){
+  if(!window._fbReady){ alert('Firebase ainda carregando, aguarde.'); return; }
+  const {auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect} = window._fb;
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  document.getElementById('login-loading').classList.add('show');
+  document.getElementById('login-error').style.display='none';
+  signInWithPopup(auth, provider).catch(err=>{
+    if(err.code==='auth/popup-blocked'||err.code==='auth/cancelled-popup-request'){
+      signInWithRedirect(auth, provider);
+    } else {
+      document.getElementById('login-loading').classList.remove('show');
+      const el=document.getElementById('login-error');
+      el.textContent='Erro: '+err.message;
+      el.style.display='block';
+    }
+  });
+}
+
+function logout(){
+  if(!window._fbReady) return;
+  if(!confirm('Deseja sair da sua conta?')) return;
+  window._fb.signOut(window._fb.auth);
+}
+
+async function carregarDoFirestore(uid){
+  const {db, doc, getDoc} = window._fb;
+  showSyncBar('Carregando seus dados...', false);
+  try{
+    const snap = await getDoc(doc(db,'usuarios',uid));
+    if(snap.exists()){
+      const d = snap.data();
+      if(Array.isArray(d.plantoes))  plantoes  = d.plantoes;
+      if(Array.isArray(d.hospitais)) hospitais = d.hospitais;
+      if(d.regras && typeof d.regras==='object') regras = d.regras;
+      if(d.perfil && typeof d.perfil==='object') perfil = {...perfil, ...d.perfil};
+      if(d.tema) localStorage.setItem(DK, d.tema);
+    }
+  }catch(e){ console.warn('Erro ao carregar Firestore:',e); }
+  showSyncBar('Pronto ✓');
+  loadTema();
+  atualizarUIperfil();
+  render();
+}
+
+async function _salvarFirestore(uid){
+  if(!uid||!window._fbReady) return;
+  const {db, doc, setDoc} = window._fb;
+  showSyncBar('Salvando...', false);
+  try{
+    await setDoc(doc(db,'usuarios',uid),{
+      plantoes, hospitais, regras, perfil,
+      tema: localStorage.getItem(DK)||'dark',
+      updatedAt: new Date().toISOString()
+    });
+    showSyncBar('Salvo ✓');
+  }catch(e){ showSyncBar('Erro ao salvar ⚠'); console.error(e); }
+}
+
+function saveFS(){
+  if(!_currentUser) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(()=> _salvarFirestore(_currentUser.uid), 900);
+}
+
+// Funções unificadas de persistência
+function save()       { saveFS(); }
+function saveRegras() { saveFS(); }
+function savePerfil() { saveFS(); }
+function load()       { plantoes=[]; hospitais=[]; }
+function carregarRegras() { regras={}; }
+
+function initAuth(){
+  if(!window._fbReady){ window.addEventListener('fb-ready', initAuth, {once:true}); return; }
+  const {auth, onAuthStateChanged, getRedirectResult} = window._fb;
+  getRedirectResult(auth).catch(()=>{});
+  onAuthStateChanged(auth, async user=>{
+    if(user){
+      _currentUser = user;
+      document.getElementById('login-screen').classList.remove('visible');
+      // Avatar Google
+      if(user.photoURL){
+        ['sb-avatar','tb-avatar'].forEach(id=>{
+          const el=document.getElementById(id);
+          if(el){ el.style.background=`url(${user.photoURL}) center/cover no-repeat`; el.textContent=''; el.classList.remove('sem-perfil'); }
+        });
+      }
+      if(!perfil.nome && user.displayName){ perfil.nome=user.displayName; perfil.email=user.email||''; }
+      await carregarDoFirestore(user.uid);
+    } else {
+      _currentUser=null;
+      plantoes=[]; hospitais=[]; regras={}; perfil={nome:'',esp:'',email:'',senha:''};
+      document.getElementById('login-screen').classList.add('visible');
+      document.getElementById('login-loading').classList.remove('show');
+    }
+  });
+}
+let anoAtual   = new Date().getFullYear();
+let turnoSel   = 'Diurno';
+let hospSel    = null; // id do hospital selecionado na sidebar
+let editHospId = null;
+// modal plantao
+let modalData  = null; // dateStr sendo editado
+let modalTurno = 'Diurno';
+let modalHospId= null;
+let modalExistId = null; // id do plantao existente (modo edição)
+
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function fmtD(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
+function parseD(s){ const p=s.split('/'); return new Date(+p[2],+p[1]-1,+p[0]); }
+function isWE(d){ return d.getDay()===0||d.getDay()===6; }
+function brl(v){ return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function horasEntreHorarios(ini,fim){
+  // ini e fim são strings "HH:MM"
+  const [hi,mi]=ini.split(':').map(Number);
+  const [hf,mf]=fim.split(':').map(Number);
+  let mins=(hf*60+mf)-(hi*60+mi);
+  if(mins<=0) mins+=24*60; // noturno cruza meia noite
+  return mins/60;
+}
+function calcValor(hosp, turno, hIni, hFim, dateStr){
+  if(!hosp) return 0;
+  // determinar se é FDS
+  const d = dateStr ? parseD(dateStr) : new Date();
+  const fds = isWE(d);
+  // determinar tipo base (Diurno ou Noturno) para Custom
+  let tipoBase = turno;
+  if(turno === 'Custom'){
+    // se começa >= 19 ou < 7 é noturno
+    const hIniN = parseInt((hIni||'07:00').split(':')[0]);
+    tipoBase = (hIniN >= 19 || hIniN < 7) ? 'Noturno' : 'Diurno';
+  }
+  const isDiurno = tipoBase !== 'Noturno';
+  // valor base 12h conforme combinação
+  const val12 = isDiurno
+    ? (fds ? (hosp.df||hosp.ds||0) : (hosp.ds||0))
+    : (fds ? (hosp.nf||hosp.ns||0) : (hosp.ns||0));
+  // horas efetivas
+  let h = 12;
+  if(turno === 'Custom' && hIni && hFim) h = horasEntreHorarios(hIni, hFim);
+  if(Math.abs(h-12) < 0.01) return val12;
+  // valor/hora
+  const valH = isDiurno ? (hosp.hd || val12/12) : (hosp.hn || val12/12);
+  return h * valH;
+}
+function getHosp(id){ return hospitais.find(h=>h.id===id)||null; }
+
+// ═══════════════════════════════════════════════
+// PERSISTÊNCIA
+// ═══════════════════════════════════════════════
+function save(){ try{localStorage.setItem(SK,JSON.stringify(plantoes));localStorage.setItem(HK,JSON.stringify(hospitais));}catch(e){} }
+function load(){
+  try{
+    const p=localStorage.getItem(SK); if(p) plantoes=JSON.parse(p);
+    const h=localStorage.getItem(HK); if(h) hospitais=JSON.parse(h);
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════
+// DARK MODE
+// ═══════════════════════════════════════════════
+function toggleDark(){
+  const isLight=document.body.classList.toggle('light');
+  const ic=isLight?'☽':'☀';
+  ['btn-dark','btn-dark-m'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ic;});
+  try{localStorage.setItem(DK,isLight?'light':'dark');}catch(e){}
+}
+function loadTema(){
+  try{
+    const saved=localStorage.getItem(DK);
+    if(saved==='light'){
+      document.body.classList.add('light');
+      ['btn-dark','btn-dark-m'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='☽';});
+    }
+    // default é dark, sem classe necessária
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════
+// MOBILE MENU
+// ═══════════════════════════════════════════════
+function abrirMenu(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); document.body.style.overflow='hidden'; }
+function fecharMenu(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); document.body.style.overflow=''; }
+
+// ═══════════════════════════════════════════════
+// COLLAPSE
+// ═══════════════════════════════════════════════
+function toggleSec(id,btn){
+  const el=document.getElementById(id);
+  const h=el.style.display==='none';
+  el.style.display=h?'':'none';
+  btn.textContent=h?'−':'+';
+}
+
+// ═══════════════════════════════════════════════
+// TURNO SIDEBAR
+// ═══════════════════════════════════════════════
+function setTurno(t){
+  turnoSel=t;
+  ['Diurno','Noturno','Custom'].forEach(x=>{
+    document.getElementById('btn-'+x.toLowerCase()).className='turno-btn'+(t===x?' active':'');
+  });
+  document.getElementById('tc-sidebar').className='turno-custom'+(t==='Custom'?' show':'');
+}
+
+// ═══════════════════════════════════════════════
+// MODAL HOSPITAL
+// ═══════════════════════════════════════════════
+const CORES_HOSP = [
+  {hex:'#e74c3c', nome:'Vermelho'},
+  {hex:'#e67e22', nome:'Laranja'},
+  {hex:'#f1c40f', nome:'Amarelo'},
+  {hex:'#27ae60', nome:'Verde'},
+  {hex:'#1abc9c', nome:'Turquesa'},
+  {hex:'#2980b9', nome:'Azul'},
+  {hex:'#8e44ad', nome:'Roxo'},
+  {hex:'#e91e8c', nome:'Rosa'},
+  {hex:'#00bcd4', nome:'Ciano'},
+  {hex:'#607d8b', nome:'Cinza azulado'},
+  {hex:'#795548', nome:'Marrom'},
+  {hex:'#ff5722', nome:'Laranja escuro'},
+  {hex:'#009688', nome:'Verde petróleo'},
+  {hex:'#673ab7', nome:'Violeta'},
+  {hex:'#f06292', nome:'Rosa claro'},
+  {hex:'#4caf50', nome:'Verde médio'},
+  {hex:'#ffc107', nome:'Âmbar'},
+  {hex:'#3f51b5', nome:'Índigo'},
+  {hex:'#ff9800', nome:'Âmbar escuro'},
+  {hex:'#9c27b0', nome:'Púrpura'},
+];
+
+function hexComAlpha(hex, alpha){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function popularSelectCores(corAtual){
+  const sel=document.getElementById('mh-cor');
+  const usadas=hospitais.filter(h=>h.id!==editHospId).map(h=>h.cor.toLowerCase());
+  sel.innerHTML='';
+  CORES_HOSP.forEach(c=>{
+    const usada=usadas.includes(c.hex.toLowerCase());
+    const opt=document.createElement('option');
+    opt.value=c.hex;
+    opt.textContent=(usada?'✗ ':'● ')+c.nome;
+    opt.disabled=usada;
+    opt.style.color=usada?'var(--text3)':c.hex;
+    if(c.hex.toLowerCase()===(corAtual||'').toLowerCase()) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  // se cor atual não está na lista, selecionar primeira disponível
+  if(!sel.value || usadas.includes(sel.value.toLowerCase())){
+    const primeira=CORES_HOSP.find(c=>!usadas.includes(c.hex.toLowerCase()));
+    if(primeira) sel.value=primeira.hex;
+  }
+}
+
+function validarCorHosp(){
+  const sel=document.getElementById('mh-cor');
+  const aviso=document.getElementById('mh-cor-aviso');
+  const usadas=hospitais.filter(h=>h.id!==editHospId).map(h=>h.cor.toLowerCase());
+  aviso.style.display=usadas.includes(sel.value.toLowerCase())?'block':'none';
+}
+
+function abrirModalHosp(id=null){
+  editHospId=id;
+  const h=id?getHosp(id):null;
+  document.getElementById('mh-title').textContent=h?'Editar hospital':'Novo hospital';
+  document.getElementById('mh-nome').value=h?h.nome:'';
+  popularSelectCores(h?h.cor:null);
+  document.getElementById('mh-cor-aviso').style.display='none';
+  document.getElementById('mh-ds').value=h?h.ds:'';
+  document.getElementById('mh-df').value=h?h.df:'';
+  document.getElementById('mh-ns').value=h?h.ns:'';
+  document.getElementById('mh-nf').value=h?h.nf:'';
+  document.getElementById('mh-hd').value=h?h.hd:'';
+  document.getElementById('mh-hn').value=h?h.hn:'';
+  document.getElementById('mh-del').style.display=h?'block':'none';
+  document.getElementById('modal-hosp').classList.add('open');
+}
+function fecharModalHosp(){ document.getElementById('modal-hosp').classList.remove('open'); editHospId=null; }
+function salvarHosp(){
+  const nome=document.getElementById('mh-nome').value.trim();
+  if(!nome){alert('Informe o nome do hospital.');return;}
+  const cor=document.getElementById('mh-cor').value;
+  const corDuplicada=hospitais.some(h=>h.id!==editHospId&&h.cor.toLowerCase()===cor.toLowerCase());
+  if(corDuplicada){alert('Essa cor já está sendo usada por outro hospital.');return;}
+  const ds=parseFloat(document.getElementById('mh-ds').value)||0;
+  const df=parseFloat(document.getElementById('mh-df').value)||ds;
+  const ns=parseFloat(document.getElementById('mh-ns').value)||0;
+  const nf=parseFloat(document.getElementById('mh-nf').value)||ns;
+  const hdRaw=document.getElementById('mh-hd').value;
+  const hnRaw=document.getElementById('mh-hn').value;
+  const hd=hdRaw?parseFloat(hdRaw):ds/12;
+  const hn=hnRaw?parseFloat(hnRaw):ns/12;
+  const dados={nome,cor,ds,df,ns,nf,hd,hn};
+  if(editHospId){
+    const h=getHosp(editHospId); if(h) Object.assign(h,dados);
+  } else {
+    hospitais.push({id:uid(),...dados});
+  }
+  save(); fecharModalHosp(); render();
+}
+function deletarHosp(){
+  if(!confirm('Remover hospital e todos os plantões vinculados?')) return;
+  plantoes=plantoes.filter(p=>p.hospId!==editHospId);
+  hospitais=hospitais.filter(h=>h.id!==editHospId);
+  if(hospSel===editHospId) hospSel=null;
+  save(); fecharModalHosp(); render();
+}
+
+// ═══════════════════════════════════════════════
+// MODAL PLANTÃO
+// ═══════════════════════════════════════════════
+function abrirModalPlantao(dateStr){
+  modalData=dateStr;
+  modalExistId=null;
+
+  // Resetar estado do plantão fixo
+  fixoAtivo = false;
+  fixoDiasSel = [parseD(dateStr).getDay()]; // pré-seleciona o dia clicado
+  const toggle = document.getElementById('mp-fixo-toggle');
+  const knob   = document.getElementById('mp-fixo-knob');
+  if(toggle){ toggle.style.background='var(--border2)'; knob.style.left='2px'; }
+  const opcoes = document.getElementById('mp-fixo-opcoes');
+  if(opcoes) opcoes.style.display='none';
+  const btnAdd = document.getElementById('mp-btn-add');
+  if(btnAdd) btnAdd.textContent='+ Adicionar';
+  // definir período padrão = ano atual
+  const anoStr = String(anoAtual);
+  const mp_ini = document.getElementById('mp-fixo-ini');
+  const mp_fim = document.getElementById('mp-fixo-fim');
+  if(mp_ini) mp_ini.value = anoStr+'-01-01';
+  if(mp_fim) mp_fim.value = anoStr+'-12-31';
+
+  document.getElementById('mp-title').textContent=fmtD(parseD(dateStr));
+
+  // Sempre modo adição — usa turno e hospital selecionados na sidebar
+  modalHospId=hospSel||(hospitais[0]?.id||null);
+  modalTurno=turnoSel;
+  if(turnoSel==='Custom'){
+    document.getElementById('tc-ini').value=document.getElementById('tc-s-ini').value;
+    document.getElementById('tc-fim').value=document.getElementById('tc-s-fim').value;
+  } else {
+    document.getElementById('tc-ini').value=turnoSel==='Noturno'?'19:00':'07:00';
+    document.getElementById('tc-fim').value=turnoSel==='Noturno'?'07:00':'19:00';
+  }
+
+  // Renderizar lista de plantões existentes neste dia
+  renderExistentesModal(dateStr);
+  renderPickerHosp();
+  setTurnoModal(modalTurno);
+  atualizarValPreview();
+  renderDiasSemanaFixo(parseD(dateStr).getDay());
+  document.getElementById('modal-plantao').classList.add('open');
+}
+
+function renderExistentesModal(dateStr){
+  const existentes=plantoes.filter(p=>p.data===dateStr);
+  const wrap=document.getElementById('mp-existentes-wrap');
+  const lista=document.getElementById('mp-existentes');
+  if(!existentes.length){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  lista.innerHTML=existentes.map(p=>{
+    const h=getHosp(p.hospId);
+    const ic=p.turno==='Noturno'?'☽':p.turno==='Diurno'?'☀':'⏱';
+    const cor=h?h.cor:'#999';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface2);margin-bottom:4px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500">${ic} ${h?h.nome:'?'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${p.turno==='Custom'?(p.hIni+'–'+p.hFim):p.turno} · ${brl(p.valor)}</div>
+      </div>
+      <button onclick="removerPlantaoId('${p.id}');renderExistentesModal('${dateStr}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:0 2px;transition:color .12s;" onmouseover="this.style.color='#c0392b'" onmouseout="this.style.color='var(--text3)'">&#215;</button>
+    </div>`;
+  }).join('');
+}
+function fecharModalPlantao(){ document.getElementById('modal-plantao').classList.remove('open'); modalData=null; modalExistId=null; }
+
+function renderPickerHosp(){
+  const picker=document.getElementById('mp-hosp-picker');
+  if(!hospitais.length){
+    picker.innerHTML='<div class="empty-state">Nenhum hospital cadastrado</div>';
+    return;
+  }
+  picker.innerHTML=hospitais.map(h=>`
+    <div class="hosp-pick-item${modalHospId===h.id?' selected':''}" style="${modalHospId===h.id?'border-color:'+h.cor:''}" onclick="selecionarHospModal('${h.id}')">
+      <div class="hosp-pick-dot" style="background:${h.cor}"></div>
+      <div class="hosp-pick-info">
+        <div class="hosp-pick-name">${h.nome}</div>
+        <div class="hosp-pick-val">☀sem: ${brl(h.ds)} · fds: ${brl(h.df)}<br>☽sem: ${brl(h.ns)} · fds: ${brl(h.nf)}</div>
+      </div>
+    </div>`).join('');
+}
+function selecionarHospModal(id){ modalHospId=id; renderPickerHosp(); atualizarValPreview(); }
+
+function setTurnoModal(t){
+  modalTurno=t;
+  ['Diurno','Noturno','Custom'].forEach(x=>{
+    document.getElementById('tp-'+x.toLowerCase()).className='turno-btn'+(t===x?' active':'');
+  });
+  document.getElementById('tc-custom').className='turno-custom'+(t==='Custom'?' show':'');
+  document.getElementById('tc-valor-custom').className='turno-custom'+(t==='Custom'?' show':'');
+  if(t==='Custom') document.getElementById('tc-valor').value='';
+  atualizarValPreview();
+}
+function atualizarValPreview(){
+  const hosp=getHosp(modalHospId);
+  if(!hosp){ document.getElementById('mp-val-preview').textContent=''; return; }
+  const ini=document.getElementById('tc-ini').value;
+  const fim=document.getElementById('tc-fim').value;
+  const h=modalTurno==='Custom'?horasEntreHorarios(ini,fim):12;
+  const fds=modalData?isWE(parseD(modalData)):false;
+  const label=fds?'fim de semana':'dia de semana';
+  // se Custom e valor manual preenchido, usa ele; senão calcula
+  const valorManual=modalTurno==='Custom'?parseFloat(document.getElementById('tc-valor').value)||0:0;
+  const v=valorManual>0?valorManual:calcValor(hosp,modalTurno,ini,fim,modalData);
+  document.getElementById('mp-val-preview').textContent=brl(v)+' · '+h.toFixed(1)+'h · '+label;
+}
+document.getElementById('tc-ini').addEventListener('change',atualizarValPreview);
+document.getElementById('tc-fim').addEventListener('change',atualizarValPreview);
+document.addEventListener('DOMContentLoaded', function(){
+  const fi = document.getElementById('mp-fixo-ini');
+  const ff = document.getElementById('mp-fixo-fim');
+  if(fi) fi.addEventListener('change', atualizarPreviewFixo);
+  if(ff) ff.addEventListener('change', atualizarPreviewFixo);
+});
+
+// Converte HH:MM em minutos desde meia-noite
+function toMins(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+
+// Retorna array de intervalos [iniMins, fimMins] — pode cruzar meia-noite (fimMins > 1440)
+function intervaloPlantao(turno, hIni, hFim){
+  if(turno==='Diurno') return [[7*60, 19*60]];
+  if(turno==='Noturno') return [[19*60, 7*60+1440]]; // cruza meia-noite
+  const ini=toMins(hIni), fim=toMins(hFim);
+  return fim>ini ? [[ini,fim]] : [[ini, fim+1440]];
+}
+
+function intervalosColidem(a, b){
+  // a e b = [iniMins, fimMins] — fim pode ser > 1440 (cruza meia-noite)
+  // verifica sobreposição simples
+  return a[0] < b[1] && b[0] < a[1];
+}
+
+function temConflito(dateStr, turno, hIni, hFim, hospId){
+  const existentes = plantoes.filter(p => p.data === dateStr);
+  if(!existentes.length) return null;
+  const novoIntervalos = intervaloPlantao(turno, hIni, hFim);
+  for(const p of existentes){
+    const pIntervalos = intervaloPlantao(p.turno, p.hIni||'07:00', p.hFim||'19:00');
+    for(const ni of novoIntervalos){
+      for(const pi of pIntervalos){
+        if(intervalosColidem(ni, pi)){
+          const h = getHosp(p.hospId);
+          return `Conflito com plantão existente (${p.turno === 'Custom' ? p.hIni+'–'+p.hFim : p.turno}${h?' · '+h.nome:''})`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function confirmarPlantao(){
+  if(!modalHospId||!modalData){alert('Selecione um hospital.');return;}
+  const hosp=getHosp(modalHospId);
+  const ini=document.getElementById('tc-ini').value;
+  const fim=document.getElementById('tc-fim').value;
+
+  if(fixoAtivo){
+    // Modo plantão fixo — gerar em múltiplas datas
+    if(!fixoDiasSel.length){ alert('Selecione pelo menos um dia da semana.'); return; }
+    const datas = gerarDatasFixo();
+    if(!datas.length){ alert('Nenhuma data gerada. Verifique o período e os dias selecionados.'); return; }
+    const h = modalTurno==='Custom' ? horasEntreHorarios(ini,fim) : 12;
+    const valorManual = modalTurno==='Custom' ? parseFloat(document.getElementById('tc-valor').value)||0 : 0;
+    let criados = 0, conflitos = 0;
+    datas.forEach(ds => {
+      const conflito = temConflito(ds, modalTurno, ini, fim, modalHospId);
+      if(conflito){ conflitos++; return; }
+      const v = valorManual > 0 ? valorManual : calcValor(hosp, modalTurno, ini, fim, ds);
+      plantoes.push({id:uid(), data:ds, hospId:modalHospId, turno:modalTurno, hIni:ini, hFim:fim, valor:v, horas:h, fds:isWE(parseD(ds)), fixo:true});
+      criados++;
+    });
+    save(); fecharModalPlantao(); render();
+    if(conflitos > 0){
+      alert(`✅ ${criados} plantão(ões) fixo(s) criado(s).\n⚠️ ${conflitos} data(s) ignorada(s) por conflito de horário.`);
+    }
+    return;
+  }
+
+  // Modo plantão único (comportamento original)
+  const conflito=temConflito(modalData, modalTurno, ini, fim, modalHospId);
+  if(conflito){
+    alert(conflito);
+    return;
+  }
+  const h=modalTurno==='Custom'?horasEntreHorarios(ini,fim):12;
+  const valorManual=modalTurno==='Custom'?parseFloat(document.getElementById('tc-valor').value)||0:0;
+  const v=valorManual>0?valorManual:calcValor(hosp,modalTurno,ini,fim,modalData);
+  plantoes.push({id:uid(),data:modalData,hospId:modalHospId,turno:modalTurno,hIni:ini,hFim:fim,valor:v,horas:h,fds:isWE(parseD(modalData))});
+  save(); fecharModalPlantao(); render();
+}
+
+// ═══════════════════════════════════════════════
+// PLANTÃO FIXO
+// ═══════════════════════════════════════════════
+const DIAS_SEMANA_LABELS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+let fixoAtivo = false;
+let fixoDiasSel = []; // array de 0–6 (0=Dom)
+
+function togglePlantaoFixo(){
+  fixoAtivo = !fixoAtivo;
+  const toggle = document.getElementById('mp-fixo-toggle');
+  const knob   = document.getElementById('mp-fixo-knob');
+  const opcoes = document.getElementById('mp-fixo-opcoes');
+  const btnAdd = document.getElementById('mp-btn-add');
+  toggle.style.background = fixoAtivo ? 'var(--accent)' : 'var(--border2)';
+  knob.style.left = fixoAtivo ? '16px' : '2px';
+  opcoes.style.display = fixoAtivo ? 'block' : 'none';
+  btnAdd.textContent = fixoAtivo ? '+ Adicionar fixo' : '+ Adicionar';
+  if(fixoAtivo) atualizarPreviewFixo();
+}
+
+function renderDiasSemanaFixo(diaDaData){
+  const wrap = document.getElementById('mp-dias-semana');
+  wrap.innerHTML = DIAS_SEMANA_LABELS.map((label, i) => {
+    const sel = fixoDiasSel.includes(i);
+    return `<div onclick="toggleDiaSemanaFixo(${i})" id="fixo-dia-${i}" style="
+      font-family:var(--mono);font-size:11px;padding:5px 9px;border-radius:6px;cursor:pointer;
+      border:1px solid ${sel ? 'var(--accent)' : 'var(--border)'};
+      background:${sel ? 'var(--accent)' : 'var(--surface)'};
+      color:${sel ? '#fff' : 'var(--text2)'};
+      transition:all .15s;user-select:none;
+    ">${label}</div>`;
+  }).join('');
+}
+
+function toggleDiaSemanaFixo(d){
+  if(fixoDiasSel.includes(d)){
+    fixoDiasSel = fixoDiasSel.filter(x => x !== d);
+  } else {
+    fixoDiasSel.push(d);
+  }
+  renderDiasSemanaFixo();
+  atualizarPreviewFixo();
+}
+
+function atualizarPreviewFixo(){
+  const ini = document.getElementById('mp-fixo-ini').value;
+  const fim = document.getElementById('mp-fixo-fim').value;
+  const prev = document.getElementById('mp-fixo-preview');
+  if(!fixoDiasSel.length){ prev.textContent = 'Selecione pelo menos um dia da semana.'; prev.style.color='#c0392b'; return; }
+  if(!ini || !fim){ prev.textContent = ''; return; }
+  const d0 = new Date(ini+'T00:00:00'), d1 = new Date(fim+'T00:00:00');
+  if(d1 < d0){ prev.textContent = 'Data final anterior à inicial.'; prev.style.color='#c0392b'; return; }
+  // contar ocorrências
+  let count = 0, cur = new Date(d0);
+  while(cur <= d1){
+    if(fixoDiasSel.includes(cur.getDay())) count++;
+    cur.setDate(cur.getDate()+1);
+  }
+  const dias = fixoDiasSel.map(d => DIAS_SEMANA_LABELS[d]).join(', ');
+  prev.style.color = 'var(--accent)';
+  prev.textContent = `${count} plantão(ões) serão criados — toda(s) ${dias}`;
+}
+
+function gerarDatasFixo(){
+  const ini = document.getElementById('mp-fixo-ini').value;
+  const fim = document.getElementById('mp-fixo-fim').value;
+  if(!ini || !fim || !fixoDiasSel.length) return [];
+  const d0 = new Date(ini+'T00:00:00'), d1 = new Date(fim+'T00:00:00');
+  const datas = [];
+  let cur = new Date(d0);
+  while(cur <= d1){
+    if(fixoDiasSel.includes(cur.getDay())) datas.push(fmtD(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  return datas;
+}
+
+// ═══════════════════════════════════════════════
+// NAV ANO
+// ═══════════════════════════════════════════════
+function navAno(d){ anoAtual+=d; render(); }
+
+// ═══════════════════════════════════════════════
+// RENDER SIDEBAR — HOSPITAIS
+// ═══════════════════════════════════════════════
+function renderHospList(){
+  const el=document.getElementById('hosp-list');
+  if(!hospitais.length){ el.innerHTML=''; return; }
+  el.innerHTML=hospitais.map(h=>`
+    <div class="hosp-chip${hospSel===h.id?' selected':''}" style="${hospSel===h.id?'border-color:'+h.cor:''}" onclick="selecionarHosp('${h.id}')">
+      <div class="hosp-dot" style="background:${h.cor}"></div>
+      <span class="hosp-name">${h.nome}</span>
+      <button class="hosp-edit-btn" onclick="event.stopPropagation();abrirModalHosp('${h.id}')">&#9998;</button>
+    </div>`).join('');
+}
+function selecionarHosp(id){ hospSel=hospSel===id?null:id; renderHospList(); }
+
+// ═══════════════════════════════════════════════
+// RENDER MÉTRICAS
+// ═══════════════════════════════════════════════
+function renderMetrics(){
+  const el=document.getElementById('resumo-metrics');
+  // total geral do ano
+  const plantõesAno=plantoes.filter(p=>parseD(p.data).getFullYear()===anoAtual);
+  const totalAno=plantõesAno.reduce((a,p)=>a+p.valor,0);
+  let html=`<div class="metric"><span class="metric-label">Total ${anoAtual}</span><span class="metric-value">${brl(totalAno)}</span></div>`;
+  // por hospital
+  hospitais.forEach(h=>{
+    const tot=plantõesAno.filter(p=>p.hospId===h.id).reduce((a,p)=>a+p.valor,0);
+    if(tot>0) html+=`<div class="metric"><span class="metric-label" style="color:${h.cor}">${h.nome}</span><span class="metric-value">${brl(tot)}</span></div>`;
+  });
+  el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER LISTA PLANTÕES
+// ═══════════════════════════════════════════════
+function renderLista(){ /* lista removida da sidebar — exclusão apenas pelo calendário */ }
+function removerPlantaoId(id){ plantoes=plantoes.filter(p=>p.id!==id); save(); render(); }
+
+// ═══════════════════════════════════════════════
+// RENDER CALENDÁRIOS
+// ═══════════════════════════════════════════════
+function renderMonths(){
+  const grid=document.getElementById('months-grid');
+  grid.innerHTML='';
+  for(let m=1;m<=12;m++) grid.appendChild(buildMonthCard(m,anoAtual));
+}
+
+function buildMonthCard(mes,ano){
+  const todayStr=fmtD(new Date());
+  const hoje=new Date();
+  const isCur=mes===hoje.getMonth()+1&&ano===hoje.getFullYear();
+  const plantoesMes=plantoes.filter(p=>{const d=parseD(p.data);return d.getMonth()+1===mes&&d.getFullYear()===ano;});
+  const totalMes=plantoesMes.reduce((a,p)=>a+p.valor,0);
+
+  const card=document.createElement('div');
+  card.className='month-card'+(isCur?' current-month':'');
+  card.id='month-card-'+(mes-1);
+
+  // header
+  const hdr=document.createElement('div'); hdr.className='mc-header';
+  // construir breakdown por hospital
+  let totaisHtml='';
+  if(totalMes>0){
+    hospitais.forEach(h=>{
+      const tot=plantoesMes.filter(p=>p.hospId===h.id).reduce((a,p)=>a+p.valor,0);
+      if(tot>0) totaisHtml+=`<div class="mc-hosp-line"><div class="mc-hosp-dot" style="background:${h.cor}"></div>${brl(tot)}</div>`;
+    });
+    const hospsNoMes=hospitais.filter(h=>plantoesMes.some(p=>p.hospId===h.id));
+    if(hospsNoMes.length>1) totaisHtml+=`<div class="mc-total-sum">${brl(totalMes)}</div>`;
+  }
+  hdr.innerHTML=`<div><div class="mc-title">${MESES[mes-1]}</div><span class="mc-month-num">${String(mes).padStart(2,'0')} · ${ano}</span></div>`
+    +(totaisHtml?`<div class="mc-totals">${totaisHtml}</div>`:'');
+  card.appendChild(hdr);
+
+  // dias semana
+  const dow=document.createElement('div'); dow.className='mc-dow';
+  ['S','T','Q','Q','S','S','D'].forEach(l=>{
+    const c=document.createElement('div');c.className='mc-dow-cell';c.textContent=l;dow.appendChild(c);
+  });
+  card.appendChild(dow);
+
+  // grid de dias
+  const g=document.createElement('div'); g.className='mc-grid';
+  const primeiro=new Date(ano,mes-1,1);
+  const startCol=(primeiro.getDay()+6)%7;
+  for(let i=0;i<startCol;i++){const e=document.createElement('div');e.className='mc-day mc-empty';g.appendChild(e);}
+
+  const diasNoMes=new Date(ano,mes,0).getDate();
+  for(let d=1;d<=diasNoMes;d++){
+    const dObj=new Date(ano,mes-1,d);
+    const ds=fmtD(dObj);
+    const dayPlantoes=plantoes.filter(p=>p.data===ds);
+
+    const el=document.createElement('div');
+    let cls='mc-day';
+    if(isWE(dObj)) cls+=' mc-weekend';
+    if(ds===todayStr) cls+=' mc-today';
+    el.className=cls;
+
+    // número do dia
+    const num=document.createElement('div'); num.className='mc-dnum'; num.textContent=d;
+    el.appendChild(num);
+
+    // visual: célula dividida ao meio por turno/hospital
+    if(dayPlantoes.length){
+      const diurnos  = dayPlantoes.filter(p=>p.turno!=='Noturno');
+      const noturnos = dayPlantoes.filter(p=>p.turno==='Noturno');
+      const temAmbos = diurnos.length>0 && noturnos.length>0;
+
+      // helper: cor sólida ou gradiente horizontal para grupo
+      function corGrupo(grupo){
+        if(grupo.length===1){
+          const c=getHosp(grupo[0].hospId)?.cor||'#aaa';
+          return hexComAlpha(c, 0.72);
+        }
+        const stops=grupo.map((p,i)=>{
+          const c=getHosp(p.hospId)?.cor||'#aaa';
+          const ca=hexComAlpha(c, 0.72);
+          const a=Math.round(i/grupo.length*100), b=Math.round((i+1)/grupo.length*100);
+          return `${ca} ${a}%,${ca} ${b}%`;
+        });
+        return `linear-gradient(90deg,${stops.join(',')})`;
+      }
+
+      function iconeGrupo(grupo){
+        if(!grupo.length) return '';
+        const t=grupo[0].turno;
+        return t==='Noturno'?'☽':t==='Diurno'?'☀':'⏱';
+      }
+
+      // função auxiliar para cor de texto legível sobre cor de fundo
+      function textoLegivel(hexCor){
+        // luminância simples — retorna branco ou preto
+        const hex=hexCor.replace('#','');
+        if(hex.length!==6) return '#fff';
+        const r=parseInt(hex.slice(0,2),16);
+        const g=parseInt(hex.slice(2,4),16);
+        const b=parseInt(hex.slice(4,6),16);
+        const lum=(0.299*r+0.587*g+0.114*b)/255;
+        return lum>0.55?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+      }
+
+      const halves=document.createElement('div'); halves.className='mc-halves';
+      el.classList.add('has-plantao');
+
+      if(temAmbos){
+        const corD=corGrupo(diurnos);
+        const corN=corGrupo(noturnos);
+        const corTextoD=textoLegivel(getHosp(diurnos[0].hospId)?.cor||'#aaa');
+        const corTextoN=textoLegivel(getHosp(noturnos[0].hospId)?.cor||'#aaa');
+        // borda da célula com a cor do diurno (mais clara)
+
+
+        const ttD=diurnos.map(p=>(getHosp(p.hospId)?.nome||'?')+' · '+(p.turno==='Custom'?p.hIni+'–'+p.hFim:'07:00–19:00')+' · '+brl(p.valor)).join(' | ');
+        const ttN=noturnos.map(p=>(getHosp(p.hospId)?.nome||'?')+' · '+(p.turno==='Custom'?p.hIni+'–'+p.hFim:'19:00–07:00')+' · '+brl(p.valor)).join(' | ');
+        halves.innerHTML=
+          `<div class="mc-half" style="background:${corD};color:${corTextoD}" title="${ttD}"><span class="mc-half-icon">☀</span></div>`+
+          `<div class="mc-divider"></div>`+
+          `<div class="mc-half" style="background:${corN};color:${corTextoN}" title="${ttN}"><span class="mc-half-icon">☽</span></div>`;
+      } else {
+        const grupo=diurnos.length?diurnos:noturnos;
+        const corF=corGrupo(grupo);
+        const ic=iconeGrupo(grupo);
+        const lbl=noturnos.length?'NOTURNO':'DIURNO';
+        const corTexto=textoLegivel(getHosp(grupo[0].hospId)?.cor||'#aaa');
+
+        const ttF=grupo.map(p=>(getHosp(p.hospId)?.nome||'?')+' · '+(p.turno==='Custom'?p.hIni+'–'+p.hFim:p.turno==='Noturno'?'19:00–07:00':'07:00–19:00')+' · '+brl(p.valor)).join(' | ');
+        halves.innerHTML=`<div class="mc-half-full" style="background:${corF};color:${corTexto}" title="${ttF}"><span class="mc-half-icon">${ic}</span></div>`;
+      }
+
+      el.appendChild(halves);
+    }
+
+    el.onclick=()=>abrirModalPlantao(ds);
+    g.appendChild(el);
+  }
+  card.appendChild(g);
+  return card;
+}
+
+// ═══════════════════════════════════════════════
+// PREVISÃO
+// ═══════════════════════════════════════════════
+// regras por hospital unificadas no objeto global `regras`
+// (carregadas/salvas via Firestore junto com os demais dados)
+let regrasHosp = {};  // alias local para compatibilidade
+
+function carregarRegras(){
+  regrasHosp = regras; // sincroniza com o objeto global
+}
+function salvarRegrasHosp(hospId){
+  const inicio=+document.getElementById('rh-ini-'+hospId).value||21;
+  const fim=   +document.getElementById('rh-fim-'+hospId).value||20;
+  const pgto=  +document.getElementById('rh-pgto-'+hospId).value||15;
+  const meses= +document.getElementById('rh-mp-'+hospId).value||1;
+  regrasHosp[hospId]={inicio,fim,pgto,mesesPgto:meses};
+  regras = regrasHosp; // mantém sincronizado
+  saveFS();
+  const el=document.getElementById('rh-res-'+hospId);
+  if(el) el.textContent=`Dia ${inicio} ao ${fim} → pagto dia ${pgto} após ${meses} mês`;
+  renderPrevisao();
+}
+function getRegrasHosp(hospId){
+  const r=regrasHosp[hospId];
+  return{inicio:r?.inicio||21,fim:r?.fim||20,pgto:r?.pgto||15,mesesPgto:r?.mesesPgto||1};
+}
+function toggleRegrasHosp(hospId){
+  const p=document.getElementById('rh-painel-'+hospId);
+  const b=document.getElementById('rh-btn-'+hospId);
+  const abre=!p.classList.contains('open');
+  p.classList.toggle('open');
+  if(b) b.classList.toggle('ativo', abre);
+}
+
+function toggleHospPrev(hospId){
+  const body=document.getElementById('ph-body-'+hospId);
+  const btn=document.getElementById('ph-tog-'+hospId);
+  if(!body) return;
+  const oculto=body.style.display==='none';
+  body.style.display=oculto?'':'none';
+  if(btn) btn.textContent=oculto?'−':'+';
+}
+
+function ultimoDiaMes(ano,mes){return new Date(ano,mes+1,0).getDate();}
+function dataSegura(ano,mes,dia){return new Date(ano,mes,Math.min(dia,ultimoDiaMes(ano,mes)));}
+
+function gerarCiclos(cfg){
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const anoRef=hoje.getFullYear();
+  const ciclos=[];
+  let sm=10,sy=anoRef-1;
+  for(let g=0;g<20;g++){
+    const inicio=dataSegura(sy,sm,cfg.inicio);
+    // Se fim >= início: ciclo dentro do mesmo mês
+    // Se fim < início: ciclo cruza para o mês seguinte (ex: dia 21 ao 20)
+    let ef,fy;
+    if(cfg.fim>=cfg.inicio){
+      // mesmo mês
+      ef=sm; fy=sy;
+    } else {
+      // mês seguinte
+      ef=sm+1; fy=sy;
+      if(ef>11){ef=0;fy++;}
+    }
+    const fim=dataSegura(fy,ef,cfg.fim);
+    let pp=ef+cfg.mesesPgto,py=fy;while(pp>11){pp-=12;py++;}
+    const pagamento=dataSegura(py,pp,cfg.pgto);
+    if(pagamento.getFullYear()>anoRef) break;
+    if(pagamento.getFullYear()===anoRef||fim>=hoje) ciclos.push({inicio,fim,pagamento});
+    sm++;if(sm>11){sm=0;sy++;}
+  }
+  return ciclos;
+}
+
+function statusCiclo(c){
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const fimP=c.fim<hoje,pagP=c.pagamento<hoje,iniH=c.inicio<=hoje;
+  if(pagP) return{status:'Pago',badge:'badge-pago',dias:'Pago em '+fmtD(c.pagamento)};
+  if(fimP){const df=Math.ceil((c.pagamento-hoje)/86400000);return{status:'Aguardando',badge:'badge-aguard',dias:'Pagamento em '+df+' dia'+(df!==1?'s':'')};}
+  if(iniH){const df=Math.ceil((c.fim-hoje)/86400000);return{status:'Parcial',badge:'badge-parcial',dias:'Fecha em '+df+' dia'+(df!==1?'s':'')};}
+  return{status:'Futuro',badge:'badge-aberto',dias:'Inicia em '+fmtD(c.inicio)};
+}
+
+function resumoRegra(cfg){
+  return `Dia ${cfg.inicio} ao ${cfg.fim} → pagto dia ${cfg.pgto} após ${cfg.mesesPgto} mês`;
+}
+
+function renderPrevisao(){
+  const list=document.getElementById('prev-list');
+  list.innerHTML='';
+  if(!hospitais.length){
+    list.innerHTML='<div class="empty-state">Nenhum hospital cadastrado</div>';
+    return;
+  }
+  hospitais.forEach((h,hi)=>{
+    const cfg=getRegrasHosp(h.id);
+    const ciclos=gerarCiclos(cfg);
+
+    const block=document.createElement('div');
+    block.className='prev-hosp-block';
+
+    // cabeçalho — clique no nome/dot colapsa, botão regras separado
+    const hdr=document.createElement('div'); hdr.className='prev-hosp-hdr';
+    hdr.innerHTML=`<div class="prev-hosp-dot" style="background:${h.cor}"></div>`
+      +`<span class="prev-hosp-nome">${h.nome}</span>`
+      +`<button class="prev-hosp-regras-btn" id="rh-btn-${h.id}" onclick="event.stopPropagation();toggleRegrasHosp('${h.id}')">&#9998; regras</button>`
+      +`<button class="prev-hosp-toggle" id="ph-tog-${h.id}" onclick="event.stopPropagation();toggleHospPrev('${h.id}')">−</button>`;
+    block.appendChild(hdr);
+
+    // painel de regras (inicialmente fechado)
+    const painel=document.createElement('div');
+    painel.className='prev-hosp-regras';
+    painel.id='rh-painel-'+h.id;
+    painel.innerHTML=`<div class="prev-hosp-regras-titulo">Ciclo de pagamento</div>`
+      +`<div class="field"><label>Início ciclo dia</label><input type="number" id="rh-ini-${h.id}" min="1" max="28" value="${cfg.inicio}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="field"><label>Fim ciclo dia</label><input type="number" id="rh-fim-${h.id}" min="1" max="28" value="${cfg.fim}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="field"><label>Pagamento dia</label><input type="number" id="rh-pgto-${h.id}" min="1" max="28" value="${cfg.pgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="field"><label>Meses após fim</label><input type="number" id="rh-mp-${h.id}" min="1" max="3" value="${cfg.mesesPgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="prev-resumo-regra" id="rh-res-${h.id}">${resumoRegra(cfg)}</div>`;
+    const hospBody=document.createElement('div');
+    hospBody.className='prev-hosp-body';
+    hospBody.id='ph-body-'+h.id;
+    hospBody.appendChild(painel);
+
+    // lista vertical de ciclos
+    const cicloList=document.createElement('div');
+    ciclos.forEach(c=>{
+      const total=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;}).reduce((a,p)=>a+p.valor,0);
+      const{status,badge,dias}=statusCiclo(c);
+      const item=document.createElement('div');item.className='prev-item';
+      item.style.marginBottom='4px';
+      item.innerHTML=`<div class="prev-hdr"><span class="prev-periodo">${fmtD(c.inicio)} – ${fmtD(c.fim)}</span><span class="prev-badge ${badge}">${status}</span></div>`
+        +`<div class="prev-body"><div><div class="prev-pgto">pagamento<br><strong>${fmtD(c.pagamento)}</strong></div><div class="prev-dias">${dias}</div></div>`
+        +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>`
+        +`<button class="btn-pdf" data-ini="${c.inicio.getTime()}" data-fim="${c.fim.getTime()}" data-pgto="${fmtD(c.pagamento)}" data-hosp="${h.id}">&#128196; PDF</button></div></div>`;
+      cicloList.appendChild(item);
+    });
+    hospBody.appendChild(cicloList);
+    block.appendChild(hospBody);
+
+    // separador entre hospitais
+    if(hi<hospitais.length-1){
+      const sep=document.createElement('div');
+      sep.style.cssText='border-top:1px solid var(--border);margin:8px 0 10px;';
+      block.appendChild(sep);
+    }
+    list.appendChild(block);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// SOMA INTERVALO
+// ═══════════════════════════════════════════════
+// ── MINI CALENDÁRIO DE INTERVALO ──
+let miniMes = new Date().getMonth();
+let miniAno = new Date().getFullYear();
+let miniIni = null; // Date
+let miniFim = null; // Date
+
+function miniNavMes(d){
+  miniMes += d;
+  if(miniMes > 11){ miniMes = 0; miniAno++; }
+  if(miniMes < 0){ miniMes = 11; miniAno--; }
+  renderMiniCal();
+}
+
+function miniClicarDia(dateStr){
+  const d = parseD(dateStr);
+  if(!miniIni || (miniIni && miniFim)){
+    // começa nova seleção
+    miniIni = d; miniFim = null;
+  } else {
+    // define fim (garante ordem)
+    if(d < miniIni){ miniFim = miniIni; miniIni = d; }
+    else { miniFim = d; }
+  }
+  // atualizar hidden inputs
+  document.getElementById('dt-ini').value = miniIni ? fmtD(miniIni) : '';
+  document.getElementById('dt-fim').value = miniFim ? fmtD(miniFim) : '';
+  // atualizar labels
+  const lblIni = document.getElementById('lbl-ini');
+  const lblFim = document.getElementById('lbl-fim');
+  lblIni.textContent = miniIni ? 'Início: '+fmtD(miniIni) : 'Início: —';
+  lblIni.className = 'mini-range-lbl'+(miniIni?' set':'');
+  lblFim.textContent = miniFim ? 'Fim: '+fmtD(miniFim) : 'Fim: —';
+  lblFim.className = 'mini-range-lbl'+(miniFim?' set':'');
+  // limpar resultado
+  document.getElementById('sum-result').style.display='none';
+  document.getElementById('sum-error').style.display='none';
+  renderMiniCal();
+}
+
+function renderMiniCal(){
+  const grid = document.getElementById('mini-cal-grid');
+  const label = document.getElementById('mini-mes-label');
+  if(!grid) return;
+  label.textContent = MESES[miniMes].slice(0,3)+' '+miniAno;
+  const todayStr = fmtD(new Date());
+  const primeiro = new Date(miniAno, miniMes, 1);
+  const startCol = (primeiro.getDay() + 6) % 7;
+  const diasNoMes = new Date(miniAno, miniMes+1, 0).getDate();
+  let html = '';
+  for(let i=0;i<startCol;i++) html += '<div class="mini-day empty"></div>';
+  for(let d=1;d<=diasNoMes;d++){
+    const dObj = new Date(miniAno, miniMes, d);
+    const ds = fmtD(dObj);
+    const temPlantao = plantoes.some(p=>p.data===ds);
+    let cls = 'mini-day';
+    if(ds===todayStr) cls += ' today';
+    if(miniIni && miniFim){
+      if(dObj.getTime()===miniIni.getTime()) cls += ' range-start';
+      else if(dObj.getTime()===miniFim.getTime()) cls += ' range-end';
+      else if(dObj>miniIni && dObj<miniFim) cls += ' in-range';
+    } else if(miniIni && dObj.getTime()===miniIni.getTime()){
+      cls += ' range-start range-end';
+    }
+    if(temPlantao) cls += ' has-plantao';
+    html += `<div class="${cls}" onclick="miniClicarDia('${ds}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function limparMiniCal(){
+  miniIni=null; miniFim=null;
+  document.getElementById('dt-ini').value='';
+  document.getElementById('dt-fim').value='';
+  document.getElementById('lbl-ini').textContent='Início: —';
+  document.getElementById('lbl-ini').className='mini-range-lbl';
+  document.getElementById('lbl-fim').textContent='Fim: —';
+  document.getElementById('lbl-fim').className='mini-range-lbl';
+  document.getElementById('sum-result').style.display='none';
+  document.getElementById('sum-error').style.display='none';
+  renderMiniCal();
+}
+
+function somarIntervalo(){
+  const res=document.getElementById('sum-result'),err=document.getElementById('sum-error');
+  res.style.display='none'; err.style.display='none';
+  if(!miniIni || !miniFim){ err.textContent='Selecione o intervalo no calendário.'; err.style.display='block'; return; }
+  const soma=plantoes.reduce((a,p)=>{const d=parseD(p.data);return d>=miniIni&&d<=miniFim?a+p.valor:a;},0);
+  const detalhes=hospitais.map(h=>{
+    const t=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=miniIni&&d<=miniFim;}).reduce((a,p)=>a+p.valor,0);
+    return t>0?`<div style="display:flex;align-items:center;gap:5px;margin-top:3px"><div style="width:7px;height:7px;border-radius:50%;background:${h.cor};flex-shrink:0"></div><span style="font-family:var(--mono);font-size:10px;color:var(--text2);flex:1">${h.nome}</span><span style="font-family:var(--mono);font-size:10px;color:var(--text2)">${brl(t)}</span></div>`:null;
+  }).filter(Boolean);
+  res.innerHTML='<div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--accent);margin-bottom:4px">'+brl(soma)+'</div>'
+    +(detalhes.length>0?'<div style="border-top:.5px solid var(--border);padding-top:4px">'+detalhes.join('')+'</div>':'');
+  res.style.display='block';
+}
+
+// ═══════════════════════════════════════════════
+// PDF
+// ═══════════════════════════════════════════════
+document.addEventListener('click',function(e){
+  const b=e.target.closest('.btn-pdf');
+  if(b) gerarPDF(b.dataset.ini,b.dataset.fim,b.dataset.pgto,b.dataset.hosp||null);
+});
+
+function gerarPDF(iniTs,fimTs,pgtoStr,hospId=null){
+  const inicio=new Date(+iniTs),fim=new Date(+fimTs);
+  const itens=plantoes.filter(p=>{const d=parseD(p.data);return d>=inicio&&d<=fim&&(!hospId||p.hospId===hospId);}).sort((a,b)=>parseD(a.data)-parseD(b.data));
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const ml=20,cw=170;let y=20;
+  doc.setFillColor(245,244,240);doc.rect(0,0,210,40,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(26,25,23);
+  doc.text('Shiftr — Relatório de Plantões',ml,y);y+=7;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(107,105,96);
+  doc.text('Período: '+fmtD(inicio)+' – '+fmtD(fim),ml,y);y+=5;
+  doc.text('Data de pagamento: '+pgtoStr,ml,y);y+=5;
+  doc.text('Gerado em: '+fmtD(new Date()),ml,y);y+=12;
+  if(!itens.length){doc.text('Nenhum plantão neste período.',ml,y);doc.save('plantoes.pdf');return;}
+  // cabeçalho tabela — DATA | HOSPITAL | DIA | TURNO | HORÁRIO | VALOR
+  const cData=ml, cHosp=ml+26, cDia=ml+72, cTurno=ml+104, cHor=ml+126, cVal=ml+cw;
+  doc.setFillColor(240,239,233);doc.rect(ml,y-5,cw,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(107,105,96);
+  doc.text('DATA',cData,y);doc.text('HOSPITAL',cHosp,y);doc.text('DIA',cDia,y);doc.text('TURNO',cTurno,y);doc.text('HORÁRIO',cHor,y);doc.text('VALOR',cVal,y,{align:'right'});
+  y+=3;doc.setDrawColor(216,214,206);doc.setLineWidth(.3);doc.line(ml,y,ml+cw,y);y+=5;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);
+  let total=0;
+  itens.forEach((p,idx)=>{
+    if(y>270){doc.addPage();y=20;}
+    if(idx%2===0){doc.setFillColor(250,250,248);doc.rect(ml,y-4,cw,7,'F');}
+    const h=getHosp(p.hospId);
+    const dObj=parseD(p.data);
+    const dia=isWE(dObj)?'Fim de semana':'Dia de semana';
+    const turno=p.turno==='Custom'?'Custom':p.turno;
+    const horario=p.turno==='Custom'
+      ? (p.hIni||'?')+'–'+(p.hFim||'?')
+      : p.turno==='Diurno' ? '07:00–19:00' : '19:00–07:00';
+    doc.setTextColor(26,25,23);
+    doc.text(p.data,cData,y);
+    doc.text((h?h.nome.slice(0,18):'?'),cHosp,y);
+    doc.text(dia,cDia,y);
+    doc.text(turno,cTurno,y);
+    doc.text(horario,cHor,y);
+    doc.text(brl(p.valor),cVal,y,{align:'right'});
+    total+=p.valor;y+=7;
+  });
+  y+=2;doc.setDrawColor(26,25,23);doc.setLineWidth(.5);doc.line(ml,y,ml+cw,y);y+=6;
+  doc.setFillColor(26,25,23);doc.rect(ml,y-5,cw,9,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(255,255,255);
+  doc.text('TOTAL',ml+2,y);doc.text(brl(total),cVal-2,y,{align:'right'});
+  doc.save('plantoes_'+fmtD(inicio).replace(/\//g,'-')+'_'+fmtD(fim).replace(/\//g,'-')+'.pdf');
+}
+
+// ═══════════════════════════════════════════════
+// CSV / BACKUP
+// ═══════════════════════════════════════════════
+function exportCSV(){
+  if(!plantoes.length){alert('Não há plantões.');return;}
+  const rows=plantoes.map(p=>{const h=getHosp(p.hospId);return`${p.data},${h?h.nome:'?'},${p.turno},${p.horas||12},${p.valor.toFixed(2)}`;});
+  const csv=['data,hospital,turno,horas,valor',...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='plantoes.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+function salvarJSON(){
+  if(!plantoes.length&&!hospitais.length){alert('Não há dados.');return;}
+  const dados={versao:2,exportado:new Date().toISOString(),hospitais,plantoes};
+  const blob=new Blob([JSON.stringify(dados,null,2)],{type:'application/json'});
+  const hoje=new Date();
+  const nome='plantoes_backup_'+hoje.getFullYear()+String(hoje.getMonth()+1).padStart(2,'0')+String(hoje.getDate()).padStart(2,'0')+'.json';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  showBackupMsg('Backup salvo!','ok');
+}
+function carregarJSON(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const d=JSON.parse(e.target.result);
+      if(d.versao===2&&d.hospitais&&d.plantoes){
+        if((plantoes.length||hospitais.length)&&!confirm('Substituir dados atuais?')){event.target.value='';return;}
+        hospitais=d.hospitais;plantoes=d.plantoes;
+      } else if(Array.isArray(d.plantoes||d)){
+        // compatibilidade v1
+        const lista=d.plantoes||d;
+        if(!confirm('Backup antigo detectado (sem hospitais). Importar só plantões?')){event.target.value='';return;}
+        plantoes=lista;
+      }
+      save();render();showBackupMsg(plantoes.length+' plantões carregados!','ok');
+    }catch(err){showBackupMsg('Erro: '+err.message,'err');}
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+function showBackupMsg(msg,tipo){
+  const el=document.getElementById('backup-msg');el.textContent=msg;
+  el.style.color=tipo==='ok'?'var(--accent)':'#c0392b';
+  clearTimeout(el._t);el._t=setTimeout(()=>{el.textContent='';},4000);
+}
+function limparTudo(){
+  if(confirm('Remover todos os plantões? Os hospitais serão mantidos.')){plantoes=[];save();render();}
+}
+
+// ═══════════════════════════════════════════════
+// RENDER PRINCIPAL
+// ═══════════════════════════════════════════════
+function setPage(p){
+  ['cal','dash'].forEach(id=>{
+    document.getElementById('page-'+id).classList.toggle('active', id===p);
+    document.getElementById('nav-'+id).classList.toggle('active', id===p);
+  });
+  if(p==='dash') renderDashboard();
+}
+
+function renderDashboard(){
+  const el=document.getElementById('dash-content');
+  const label=document.getElementById('dash-label');
+  label.textContent='Dashboard — '+anoAtual;
+  if(!plantoes.length&&!hospitais.length){
+    el.innerHTML='<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding:40px;text-align:center">Nenhum dado disponível.<br>Adicione hospitais e plantões para ver o dashboard.</div>';
+    return;
+  }
+  const pAno=plantoes.filter(p=>parseD(p.data).getFullYear()===anoAtual);
+  const totalAno=pAno.reduce((a,p)=>a+p.valor,0);
+  const totalPlantoes=pAno.length;
+  const mediaM=totalAno/12;
+
+  // por hospital
+  const porHosp=hospitais.map(h=>{
+    const ps=pAno.filter(p=>p.hospId===h.id);
+    const horas=ps.reduce((a,p)=>a+(p.horas||12),0);
+    return{...h,total:ps.reduce((a,p)=>a+p.valor,0),qtd:ps.length,horas,
+      diurno:ps.filter(p=>p.turno!=='Noturno').reduce((a,p)=>a+p.valor,0),
+      noturno:ps.filter(p=>p.turno==='Noturno').reduce((a,p)=>a+p.valor,0)};
+  }).filter(h=>h.qtd>0).sort((a,b)=>b.total-a.total);
+  const totalHoras=porHosp.reduce((a,h)=>a+h.horas,0);
+
+  // por mês
+  const porMes=Array.from({length:12},(_,i)=>{
+    const ps=pAno.filter(p=>parseD(p.data).getMonth()===i);
+    const segs=hospitais.map(h=>({cor:h.cor,val:ps.filter(p=>p.hospId===h.id).reduce((a,p)=>a+p.valor,0)})).filter(s=>s.val>0);
+    return{mes:i,total:ps.reduce((a,p)=>a+p.valor,0),segs,qtd:ps.length};
+  });
+  const maxMes=Math.max(...porMes.map(m=>m.total),1);
+
+  // mês com mais ganho (por data de plantão)
+  const melhorMes=porMes.reduce((a,b)=>b.total>a.total?b:a,porMes[0]);
+
+  // previsão por mês de pagamento — calculado aqui para reuso
+  const porMesPgtoGlobal = Array.from({length:12}, ()=>({total:0,qtd:0}));
+  hospitais.forEach(h=>{
+    const cfg=getRegrasHosp(h.id);
+    const ciclos=gerarCiclos(cfg);
+    ciclos.forEach(c=>{
+      if(c.pagamento.getFullYear()!==anoAtual) return;
+      const mesIdx=c.pagamento.getMonth();
+      const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+      const tot=ps.reduce((a,p)=>a+p.valor,0);
+      porMesPgtoGlobal[mesIdx].total+=tot;
+      porMesPgtoGlobal[mesIdx].qtd+=ps.length;
+    });
+  });
+  const melhorMesPgto=porMesPgtoGlobal.reduce((a,b,bi)=>b.total>a.total?{...b,mes:bi}:{...a},
+    {...porMesPgtoGlobal[0],mes:0});
+
+  // diurno vs noturno
+  const totDiurno=pAno.filter(p=>p.turno!=='Noturno').reduce((a,p)=>a+p.valor,0);
+  const totNoturno=pAno.filter(p=>p.turno==='Noturno').reduce((a,p)=>a+p.valor,0);
+  const pctNoturno=totalAno>0?Math.round(totNoturno/totalAno*100):0;
+  // semana vs FDS
+  const totSemana=pAno.filter(p=>!isWE(parseD(p.data))).reduce((a,p)=>a+p.valor,0);
+  const totFDS=pAno.filter(p=>isWE(parseD(p.data))).reduce((a,p)=>a+p.valor,0);
+
+  el.innerHTML=`
+  <!-- KPIs -->
+  <div class="dash-grid">
+    <div class="dash-card">
+      <div class="dash-card-title">Resumo anual ${anoAtual}</div>
+      <div class="dash-big-val">${brl(totalAno)}</div>
+      <div class="dash-sub">${totalPlantoes} plantão${totalPlantoes!==1?'s':''}</div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px;">
+        ${porHosp.map(h=>`<div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:${h.cor};flex-shrink:0"></div>
+          <span style="flex:1;color:var(--text2)">${h.nome}</span>
+          <span style="color:var(--text);font-weight:500">${brl(h.total)}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">☀ Diurno vs ☽ Noturno</div>
+      <div style="display:flex;gap:12px;margin-bottom:8px;">
+        <div>
+          <div class="dash-big-val" style="font-size:20px">${100-pctNoturno}%</div>
+          <div class="dash-sub">☀ Diurno</div>
+        </div>
+        <div style="width:.5px;background:var(--border);flex-shrink:0"></div>
+        <div>
+          <div class="dash-big-val" style="font-size:20px">${pctNoturno}%</div>
+          <div class="dash-sub">☽ Noturno</div>
+        </div>
+      </div>
+      <div class="dash-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:3px"><span>${brl(totDiurno)}</span><span>${brl(totNoturno)}</span></div>
+        <div class="dash-bar-bg" style="height:8px;border-radius:4px;overflow:hidden;display:flex;">
+          <div style="width:${100-pctNoturno}%;background:#e6c94a;border-radius:4px 0 0 4px;"></div>
+          <div style="width:${pctNoturno}%;background:var(--accent);border-radius:0 4px 4px 0;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Semana vs Fim de semana</div>
+      <div style="display:flex;gap:12px;margin-bottom:8px;">
+        <div>
+          <div class="dash-big-val" style="font-size:20px">${totalAno>0?Math.round(totSemana/totalAno*100):0}%</div>
+          <div class="dash-sub">Semana</div>
+        </div>
+        <div style="width:.5px;background:var(--border);flex-shrink:0"></div>
+        <div>
+          <div class="dash-big-val" style="font-size:20px">${totalAno>0?Math.round(totFDS/totalAno*100):0}%</div>
+          <div class="dash-sub">Fim de semana</div>
+        </div>
+      </div>
+      <div class="dash-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:3px"><span>${brl(totSemana)}</span><span>${brl(totFDS)}</span></div>
+        <div class="dash-bar-bg" style="height:8px;border-radius:4px;overflow:hidden;display:flex;">
+          <div style="width:${totalAno>0?Math.round(totSemana/totalAno*100):0}%;background:#4caf50;border-radius:4px 0 0 4px;"></div>
+          <div style="width:${totalAno>0?Math.round(totFDS/totalAno*100):0}%;background:#f1c40f;border-radius:0 4px 4px 0;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Melhor mês (recebimento)</div>
+      <div class="dash-big-val">${melhorMesPgto.total>0?MESES[melhorMesPgto.mes].slice(0,3):'—'}</div>
+      <div class="dash-sub">${melhorMesPgto.total>0?brl(melhorMesPgto.total)+' · '+melhorMesPgto.qtd+' plantão'+(melhorMesPgto.qtd!==1?'s':''):'sem dados'}</div>
+    </div>
+  </div>
+
+  <!-- Gráfico mensal por data exata de pagamento -->
+  ${(()=>{
+    // agrupa por "YYYY/MM/DD" de pagamento → lista de {cor, nome, val}
+    const porData={};
+    hospitais.forEach(h=>{
+      const cfg=getRegrasHosp(h.id);
+      const ciclos=gerarCiclos(cfg);
+      ciclos.forEach(c=>{
+        if(c.pagamento.getFullYear()!==anoAtual) return;
+        const total=plantoes.filter(p=>{
+          const d=parseD(p.data);
+          return p.hospId===h.id && d>=c.inicio && d<=c.fim;
+        }).reduce((a,p)=>a+p.valor,0);
+        if(total<=0) return;
+        const key=fmtD(c.pagamento); // dd/mm/yyyy
+        if(!porData[key]) porData[key]={pagamento:c.pagamento,itens:[]};
+        porData[key].itens.push({cor:h.cor,nome:h.nome,val:total});
+      });
+    });
+
+    // ordenar por data e agrupar por mês para o gráfico
+    // cada mês pode ter múltiplas datas → sub-barras lado a lado
+    const mesesMap=Array.from({length:12},()=>[]);
+    Object.values(porData).sort((a,b)=>a.pagamento-b.pagamento).forEach(d=>{
+      const mi=d.pagamento.getMonth();
+      const dia=d.pagamento.getDate();
+      const tot=d.itens.reduce((a,i)=>a+i.val,0);
+      mesesMap[mi].push({dia,tot,itens:d.itens,dataStr:fmtD(d.pagamento)});
+    });
+
+    const allTots=Object.values(porData).map(d=>d.itens.reduce((a,i)=>a+i.val,0));
+    const maxVal=Math.max(...allTots,1);
+    const totalPgto=allTots.reduce((a,v)=>a+v,0);
+
+    // Gráfico SVG — dimensões fixas, espaçamento dinâmico
+    const SVG_H=80;      // altura das barras
+    const LABEL_DIA=12;  // espaço para label do dia
+    const LABEL_MES=12;  // espaço para nome do mês
+    const LABEL_TOT=12;  // espaço para total do mês
+    const MARGIN_L=8, MARGIN_R=8;
+    const SVG_TOTAL_H=SVG_H+LABEL_DIA+LABEL_MES+LABEL_TOT+4;
+
+    // largura disponível — distribui igualmente entre os 12 meses
+    // cada mês recebe espaço proporcional ao número de datas
+    const totalSlots=mesesMap.reduce((a,d)=>a+Math.max(d.length,1),0);
+    const AVAILABLE=600; // largura interna fixa
+    const slotW=Math.floor((AVAILABLE-MARGIN_L-MARGIN_R)/totalSlots);
+    const BAR_W=Math.max(Math.floor(slotW*0.6),4);
+    const BAR_GAP=Math.max(Math.floor(slotW*0.15),1);
+    const GRP_PAD=Math.max(Math.floor(slotW*0.2),2);
+
+    let svgContent='';
+    let cx=MARGIN_L;
+    mesesMap.forEach((datas,mi)=>{
+      const grpStart=cx;
+      const numBars=Math.max(datas.length,1);
+      const grpW=numBars*slotW;
+
+      if(!datas.length){
+        // mês sem dados — traço mínimo
+        const bx=cx+slotW/2-BAR_W/2;
+        svgContent+=`<rect x="${bx}" y="${SVG_H-1}" width="${BAR_W}" height="1" fill="var(--border)" rx="1"/>`;
+        svgContent+=`<text x="${cx+slotW/2}" y="${SVG_H+LABEL_DIA+LABEL_MES}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="var(--text3)">${MESES[mi].slice(0,3)}</text>`;
+        cx+=grpW;
+        return;
+      }
+
+      // sub-barras por data
+      datas.forEach((d,di)=>{
+        const bx=cx+di*slotW+slotW/2-BAR_W/2;
+        const barH=Math.max(Math.round((d.tot/maxVal)*SVG_H),4);
+        let stackY=SVG_H;
+        d.itens.forEach(it=>{
+          const sh=Math.max(Math.round((it.val/d.tot)*barH),2);
+          stackY-=sh;
+          const isTop=it===d.itens[0];
+          svgContent+=`<rect x="${bx}" y="${stackY}" width="${BAR_W}" height="${sh}" fill="${it.cor}" rx="${isTop?2:0}" ry="${isTop?2:0}"><title>${it.nome} · dia ${d.dia}: ${brl(it.val)}</title></rect>`;
+        });
+        // label dia
+        svgContent+=`<text x="${bx+BAR_W/2}" y="${SVG_H+LABEL_DIA}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="7" fill="var(--text3)">${d.dia}</text>`;
+      });
+
+      // nome do mês centralizado no grupo
+      const mesX=cx+grpW/2;
+      const totMes=datas.reduce((a,d)=>a+d.tot,0);
+      svgContent+=`<text x="${mesX}" y="${SVG_H+LABEL_DIA+LABEL_MES}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" font-weight="500" fill="var(--text)">${MESES[mi].slice(0,3)}</text>`;
+      if(datas.length>1){
+        // total do mês em linha separada, apenas para meses com múltiplas datas
+        svgContent+=`<text x="${mesX}" y="${SVG_H+LABEL_DIA+LABEL_MES+LABEL_TOT}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="7" fill="var(--accent)">${brl(totMes)}</text>`;
+      }
+      cx+=grpW;
+    });
+
+    const finalW=cx+MARGIN_R;
+    const svgHtml=`<svg viewBox="0 0 ${finalW} ${SVG_TOTAL_H}" width="100%" style="display:block;">
+      <line x1="${MARGIN_L}" y1="${SVG_H}" x2="${finalW-MARGIN_R}" y2="${SVG_H}" stroke="var(--border)" stroke-width="0.5"/>
+      ${svgContent}
+    </svg>`;
+
+    const hospComPgto=[...new Set(Object.values(porData).flatMap(d=>d.itens.map(i=>i.cor+'|'+i.nome)))].map(s=>{const[cor,nome]=s.split('|');return{cor,nome};});
+
+    return `<div class="dash-card" style="margin-bottom:14px;">
+      <div class="dash-card-title">Previsão de recebimentos — ${anoAtual} (por data de pagamento)</div>
+      <div style="overflow-x:auto;padding-bottom:4px">${svgHtml}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${hospComPgto.map(h=>`<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)"><span style="width:8px;height:8px;border-radius:50%;background:${h.cor};display:inline-block"></span>${h.nome}</span>`).join('')}
+        </div>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent)">Total previsto: ${brl(totalPgto)}</span>
+      </div>
+    </div>`;
+  })()}
+
+  <!-- Por hospital -->
+  <div class="dash-3col">
+    <div class="dash-card">
+      <div class="dash-card-title">Receita por hospital</div>
+      ${porHosp.length?porHosp.map(h=>{
+        const pct=totalAno>0?Math.round(h.total/totalAno*100):0;
+        return`<div class="dash-hosp-row">
+          <div class="dash-hosp-dot" style="background:${h.cor}"></div>
+          <div class="dash-hosp-nome">${h.nome}</div>
+          <div class="dash-hosp-val">${brl(h.total)}</div>
+          <div class="dash-hosp-pct">${pct}%</div>
+        </div>
+        <div class="dash-bar-bg" style="margin-bottom:6px"><div class="dash-bar-fill" style="width:${pct}%;background:${h.cor}"></div></div>`;
+      }).join(''):'<div class="dash-sub">Sem dados</div>'}
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Horas trabalhadas por hospital</div>
+      ${porHosp.length?porHosp.map(h=>{
+        const pctH=totalHoras>0?Math.round(h.horas/totalHoras*100):0;
+        const hFmt=h.horas%1===0?h.horas.toFixed(0):h.horas.toFixed(1);
+        const vlrH=h.horas>0?(h.total/h.horas):0;
+        return`<div class="dash-hosp-row">
+          <div class="dash-hosp-dot" style="background:${h.cor}"></div>
+          <div class="dash-hosp-nome">${h.nome}</div>
+          <div class="dash-hosp-val">${hFmt}h</div>
+          <div class="dash-hosp-pct">${pctH}%</div>
+        </div>
+        <div class="dash-bar-bg" style="margin-bottom:2px"><div class="dash-bar-fill" style="width:${pctH}%;background:${h.cor}"></div></div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:6px;text-align:right">${brl(vlrH)}/h</div>`;
+      }).join(''):'<div class="dash-sub">Sem dados</div>'}
+      ${porHosp.length?`<div style="border-top:.5px solid var(--border);padding-top:6px;font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;justify-content:space-between"><span>Total</span><span style="font-weight:500">${totalHoras%1===0?totalHoras.toFixed(0):totalHoras.toFixed(1)}h</span></div>`:''}
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Plantões por hospital</div>
+      ${porHosp.length?porHosp.map(h=>{
+        const pctQ=totalPlantoes>0?Math.round(h.qtd/totalPlantoes*100):0;
+        return`<div class="dash-hosp-row">
+          <div class="dash-hosp-dot" style="background:${h.cor}"></div>
+          <div class="dash-hosp-nome">${h.nome}</div>
+          <div class="dash-hosp-val">${h.qtd} plantão${h.qtd!==1?'s':''}</div>
+          <div class="dash-hosp-pct">${pctQ}%</div>
+        </div>
+        <div class="dash-bar-bg" style="margin-bottom:6px"><div class="dash-bar-fill" style="width:${pctQ}%;background:${h.cor}"></div></div>`;
+      }).join(''):'<div class="dash-sub">Sem dados</div>'}
+    </div>
+  </div>
+
+  <!-- Tabela detalhada por mês — baseada em previsão de recebimento -->
+  ${(()=>{
+    // Monta mapa: por mês de pagamento, por hospital → {total, qtdPlantoes}
+    // estrutura: pgtoMap[mesIdx][hospId] = {total, qtd}
+    const pgtoMap = Array.from({length:12}, ()=>({}));
+    const pgtoTotal = Array(12).fill(0);
+    const pgtoQtd   = Array(12).fill(0);
+    const hospTotais = {}; // hospId → total anual recebido
+    hospitais.forEach(h=>{
+      hospTotais[h.id]=0;
+      const cfg=getRegrasHosp(h.id);
+      const ciclos=gerarCiclos(cfg);
+      ciclos.forEach(c=>{
+        if(c.pagamento.getFullYear()!==anoAtual) return;
+        const mi=c.pagamento.getMonth();
+        const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+        const tot=ps.reduce((a,p)=>a+p.valor,0);
+        const qtd=ps.length;
+        if(!pgtoMap[mi][h.id]) pgtoMap[mi][h.id]={total:0,qtd:0};
+        pgtoMap[mi][h.id].total+=tot;
+        pgtoMap[mi][h.id].qtd+=qtd;
+        pgtoTotal[mi]+=tot;
+        pgtoQtd[mi]+=qtd;
+        hospTotais[h.id]+=tot;
+      });
+    });
+    const grandTotal=pgtoTotal.reduce((a,v)=>a+v,0);
+    const grandQtd=pgtoQtd.reduce((a,v)=>a+v,0);
+
+    const hospCols=hospitais.filter(h=>Object.values(pgtoMap).some(m=>m[h.id]?.total>0));
+
+    const thead=`<tr>
+      <th>Mês</th>
+      <th style="text-align:center">Qtd</th>
+      ${hospCols.map(h=>`<th style="text-align:right"><span style="display:inline-flex;align-items:center;gap:4px;justify-content:flex-end"><span style="width:6px;height:6px;border-radius:50%;background:${h.cor};display:inline-block;flex-shrink:0"></span>${h.nome}</span></th>`).join('')}
+      <th style="text-align:right">Total</th>
+    </tr>`;
+
+    const rows=Array.from({length:12},(_,i)=>{
+      const tot=pgtoTotal[i];
+      const qtd=pgtoQtd[i];
+      const semDados=tot===0&&qtd===0;
+      return`<tr${semDados?' style="opacity:.35"':''}>
+        <td style="font-weight:500;color:var(--text)">${MESES[i].slice(0,3)}</td>
+        <td style="color:var(--text2);text-align:center">${qtd||'—'}</td>
+        ${hospCols.map(h=>{
+          const v=pgtoMap[i][h.id]?.total||0;
+          return`<td style="text-align:right;font-family:var(--mono);font-size:10px">${v>0?brl(v):'—'}</td>`;
+        }).join('')}
+        <td style="font-weight:600;color:var(--accent2);text-align:right;font-family:var(--mono);font-size:10px">${tot>0?brl(tot):'—'}</td>
+      </tr>`;
+    }).join('');
+
+    const tfoot=`<tr style="background:var(--surface2);border-top:1px solid var(--border)">
+      <td style="font-weight:600;color:var(--text)">Tot</td>
+      <td style="font-weight:600;text-align:center">${grandQtd}</td>
+      ${hospCols.map(h=>`<td style="font-weight:600;color:${h.cor};text-align:right;font-family:var(--mono);font-size:10px">${hospTotais[h.id]>0?brl(hospTotais[h.id]):'—'}</td>`).join('')}
+      <td style="font-weight:600;color:var(--accent2);text-align:right;font-family:var(--mono);font-size:10px">${brl(grandTotal)}</td>
+    </tr>`;
+
+    return`<div class="dash-card">
+      <div class="dash-card-title">Detalhe mensal — previsão de recebimento por hospital</div>
+      <table class="dash-table" style="width:100%;table-layout:fixed;">
+        <colgroup>
+          <col style="width:36px">
+          <col style="width:32px">
+          ${hospCols.map(()=>`<col>`).join('')}
+          <col>
+        </colgroup>
+        <thead>${thead}</thead>
+        <tbody>${rows}</tbody>
+        <tfoot>${tfoot}</tfoot>
+      </table>
+    </div>`;
+  })()}`;
+}
+
+let _primeiroRender = true;
+function render(){
+  document.getElementById('ano-display').textContent=anoAtual;
+  document.getElementById('year-label').textContent='— '+anoAtual;
+  renderHospList();
+  renderMonths();
+  renderMetrics();
+  renderLista();
+  renderPrevisao();
+  renderMiniCal();
+  if(document.getElementById('page-dash').classList.contains('active')) renderDashboard();
+  // scroll para o mês atual apenas no primeiro render do ano atual
+  if(_primeiroRender && anoAtual===new Date().getFullYear()){
+    _primeiroRender=false;
+    const mesAtual=new Date().getMonth();
+    setTimeout(()=>{
+      const el=document.getElementById('month-card-'+mesAtual);
+      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    }, 80);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+
+const PK = 'plantoes_perfil_v1';
+let perfil = {nome:'', esp:'', email:'', senha:''};
+
+function loadPerfil(){
+  try{const p=localStorage.getItem(PK);if(p)perfil=JSON.parse(p);}catch(e){}
+}
+function savePerfil(){
+  try{localStorage.setItem(PK,JSON.stringify(perfil));}catch(e){}
+}
+function iniciais(nome){
+  if(!nome) return '?';
+  const p=nome.trim().split(/\s+/);
+  if(p.length===1) return p[0].slice(0,2).toUpperCase();
+  return (p[0][0]+p[p.length-1][0]).toUpperCase();
+}
+function atualizarUIperfil(){
+  const av=document.getElementById('sb-avatar');
+  const info=document.getElementById('sb-perfil-info');
+  if(perfil.nome){
+    av.textContent=iniciais(perfil.nome);
+    av.className='perfil-avatar';
+    document.getElementById('sb-perfil-nome').textContent=perfil.nome;
+    document.getElementById('sb-perfil-esp').textContent=perfil.esp||'';
+    if(info){info.style.display='flex';}
+  } else {
+    av.innerHTML='&#128100;';
+    av.className='perfil-avatar sem-perfil';
+    if(info) info.style.display='none';
+  }
+  const avm=document.getElementById('sb-avatar-m');
+  if(avm){avm.textContent=perfil.nome?iniciais(perfil.nome):'👤';avm.className=perfil.nome?'perfil-avatar':'perfil-avatar sem-perfil';}
+}
+
+const PK = 'plantoes_perfil_v1';
+let perfil = {nome:'', esp:'', email:'', senha:''};
+
+function loadPerfil(){ perfil = {nome:'', esp:'', email:'', senha:''}; }
+function savePerfil(){ saveFS(); }
+
+function atualizarAvatarPreview(){
+  const nome=document.getElementById('pf-nome')?.value?.trim()||'';
+  const letra=nome?nome[0].toUpperCase():'?';
+  const prev=document.getElementById('pf-avatar-preview');
+  if(prev){ prev.textContent=letra; }
+}
+function abrirModalPerfil(){
+  document.getElementById('pf-nome').value=perfil.nome||'';
+  document.getElementById('pf-esp').value=perfil.esp||'';
+  document.getElementById('pf-email').value=perfil.email||(_currentUser?.email||'');
+  document.getElementById('pf-senha').value='';
+  document.getElementById('pf-senha2').value='';
+  document.getElementById('pf-erro').style.display='none';
+  atualizarAvatarPreview();
+  document.getElementById('modal-perfil').classList.add('open');
+}
+function fecharModalPerfil(){document.getElementById('modal-perfil').classList.remove('open');}
+function toggleSenhaPerfil(){
+  const inp=document.getElementById('pf-senha');
+  const btn=document.getElementById('btn-toggle-senha');
+  inp.type=inp.type==='password'?'text':'password';
+  btn.innerHTML=inp.type==='password'?'&#128065;':'&#128064;';
+}
+function salvarPerfil(){
+  const nome=document.getElementById('pf-nome').value.trim();
+  const esp=document.getElementById('pf-esp').value.trim();
+  const email=document.getElementById('pf-email').value.trim();
+  const senha=document.getElementById('pf-senha').value;
+  const senha2=document.getElementById('pf-senha2').value;
+  const erro=document.getElementById('pf-erro');
+  erro.style.display='none';
+  if(!nome){erro.textContent='Informe seu nome.';erro.style.display='block';return;}
+  if(senha&&senha!==senha2){erro.textContent='As senhas não coincidem.';erro.style.display='block';return;}
+  perfil={nome,esp,email,senha:senha||perfil.senha};
+  savePerfil();
+  atualizarUIperfil();
+  fecharModalPerfil();
+}
+
+// ═══════════════════════════════════════════════
+// INICIALIZAÇÃO
+// ═══════════════════════════════════════════════
+load();
+carregarRegras();
+loadTema();
+loadPerfil();
+atualizarUIperfil();
+// NÃO renderiza ainda — aguarda Firebase Auth
+// render() será chamado após carregarDoFirestore()
+initAuth();
+
+</script>
+</body>
+</html>
