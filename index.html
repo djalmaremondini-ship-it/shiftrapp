@@ -2612,9 +2612,6 @@ function atualizarUIperfil(){
   if(avm){avm.textContent=perfil.nome?iniciais(perfil.nome):'👤';avm.className=perfil.nome?'perfil-avatar':'perfil-avatar sem-perfil';}
 }
 
-const PK = 'plantoes_perfil_v1';
-let perfil = {nome:'', esp:'', email:'', senha:''};
-
 function loadPerfil(){ perfil = {nome:'', esp:'', email:'', senha:''}; }
 function savePerfil(){ saveFS(); }
 
@@ -2665,9 +2662,47 @@ carregarRegras();
 loadTema();
 loadPerfil();
 atualizarUIperfil();
-// NÃO renderiza ainda — aguarda Firebase Auth
-// render() será chamado após carregarDoFirestore()
 initAuth();
+
+// Expor funções chamadas via onclick no HTML
+window.loginGoogle       = loginGoogle;
+window.logout            = logout;
+window.instalarPWA       = instalarPWA;
+window.aplicarUpdate     = aplicarUpdate;
+window.navAno            = navAno;
+window.setPage           = setPage;
+window.abrirMenu         = abrirMenu;
+window.fecharMenu        = fecharMenu;
+window.toggleDark        = toggleDark;
+window.abrirModalPerfil  = abrirModalPerfil;
+window.fecharModalPerfil = fecharModalPerfil;
+window.salvarPerfil      = salvarPerfil;
+window.toggleSenhaPerfil = toggleSenhaPerfil;
+window.abrirModalHosp    = abrirModalHosp;
+window.fecharModalHosp   = fecharModalHosp;
+window.salvarHosp        = salvarHosp;
+window.editarHosp        = editarHosp;
+window.excluirHosp       = excluirHosp;
+window.abrirModalPlantao = abrirModalPlantao;
+window.fecharModalPlantao= fecharModalPlantao;
+window.confirmarPlantao  = confirmarPlantao;
+window.editarPlantao     = editarPlantao;
+window.excluirPlantao    = excluirPlantao;
+window.setTurnoModal     = setTurnoModal;
+window.togglePlantaoFixo = togglePlantaoFixo;
+window.toggleDiaSemanaFixo = toggleDiaSemanaFixo;
+window.toggleSec         = toggleSec;
+window.toggleRegrasHosp  = toggleRegrasHosp;
+window.salvarRegrasHosp  = salvarRegrasHosp;
+window.toggleHospPrev    = toggleHospPrev;
+window.calcularSoma      = calcularSoma;
+window.limparSelecao     = limparSelecao;
+window.navMiniCal        = navMiniCal;
+window.selecionarDiaMini = selecionarDiaMini;
+window.gerarPDF          = gerarPDF;
+window.atualizarValPreview = atualizarValPreview;
+window.atualizarAvatarPreview = atualizarAvatarPreview;
+window.atualizarPreviewFixo = atualizarPreviewFixo;
 
 </script>
 </body>
