@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Shiftr">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c6af7'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E">
 <script>
 // Registrar Service Worker com detecção de atualização automática
 if('serviceWorker' in navigator){
@@ -866,22 +867,14 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <div class="modal-drag"></div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
       <div id="mp-avatar-preview" style="width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;font-weight:500;color:#fff;flex-shrink:0;">?</div>
-      <div><div class="modal-title" style="margin-bottom:2px">Meu perfil</div><div style="font-family:var(--mono);font-size:9px;color:var(--text3)">Dados salvos localmente</div></div>
+      <div>
+        <div class="modal-title" style="margin-bottom:2px">Meu perfil</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text3)">Login via Google</div>
+      </div>
     </div>
     <div class="modal-field"><label>Nome completo</label><input type="text" id="pf-nome" placeholder="Dr. João Silva" oninput="atualizarAvatarPreview()"></div>
     <div class="modal-field"><label>Especialidade</label><input type="text" id="pf-esp" placeholder="Cardiologia"></div>
-    <div class="modal-field"><label>E-mail</label><input type="email" id="pf-email" placeholder="joao@email.com"></div>
-    <div class="modal-field">
-      <label>Senha</label>
-      <div style="position:relative;">
-        <input type="password" id="pf-senha" placeholder="••••••••" style="width:100%;padding-right:36px;">
-        <button onclick="toggleSenhaPerfil()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;" id="btn-toggle-senha">&#128065;</button>
-      </div>
-    </div>
-    <div class="modal-field">
-      <label>Confirmar senha</label>
-      <input type="password" id="pf-senha2" placeholder="••••••••">
-    </div>
+    <div class="modal-field"><label>E-mail</label><input type="email" id="pf-email" placeholder="joao@email.com" readonly style="opacity:.5;cursor:default;"></div>
     <div id="pf-erro" style="font-family:var(--mono);font-size:10px;color:#c0392b;margin-top:-4px;margin-bottom:8px;display:none;"></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="fecharModalPerfil()">Cancelar</button>
@@ -1790,10 +1783,12 @@ function buildMonthCard(mes,ano){
 
         const ttD=diurnos.map(p=>(getHosp(p.hospId)?.nome||'?')+' · '+(p.turno==='Custom'?p.hIni+'–'+p.hFim:'07:00–19:00')+' · '+brl(p.valor)).join(' | ');
         const ttN=noturnos.map(p=>(getHosp(p.hospId)?.nome||'?')+' · '+(p.turno==='Custom'?p.hIni+'–'+p.hFim:'19:00–07:00')+' · '+brl(p.valor)).join(' | ');
+        const icD = iconeGrupo(diurnos);
+        const icN = iconeGrupo(noturnos);
         halves.innerHTML=
-          `<div class="mc-half" style="background:${corD};color:${corTextoD}" title="${ttD}"><span class="mc-half-icon">☀</span></div>`+
+          `<div class="mc-half" style="background:${corD};color:${corTextoD}" title="${ttD}"><span class="mc-half-icon">${icD}</span></div>`+
           `<div class="mc-divider"></div>`+
-          `<div class="mc-half" style="background:${corN};color:${corTextoN}" title="${ttN}"><span class="mc-half-icon">☽</span></div>`;
+          `<div class="mc-half" style="background:${corN};color:${corTextoN}" title="${ttN}"><span class="mc-half-icon">${icN}</span></div>`;
       } else {
         const grupo=diurnos.length?diurnos:noturnos;
         const corF=corGrupo(grupo);
@@ -2624,31 +2619,20 @@ function atualizarAvatarPreview(){
 function abrirModalPerfil(){
   document.getElementById('pf-nome').value=perfil.nome||'';
   document.getElementById('pf-esp').value=perfil.esp||'';
-  document.getElementById('pf-email').value=perfil.email||(_currentUser?.email||'');
-  document.getElementById('pf-senha').value='';
-  document.getElementById('pf-senha2').value='';
+  document.getElementById('pf-email').value=_currentUser?.email||perfil.email||'';
   document.getElementById('pf-erro').style.display='none';
   atualizarAvatarPreview();
   document.getElementById('modal-perfil').classList.add('open');
 }
 function fecharModalPerfil(){document.getElementById('modal-perfil').classList.remove('open');}
-function toggleSenhaPerfil(){
-  const inp=document.getElementById('pf-senha');
-  const btn=document.getElementById('btn-toggle-senha');
-  inp.type=inp.type==='password'?'text':'password';
-  btn.innerHTML=inp.type==='password'?'&#128065;':'&#128064;';
-}
 function salvarPerfil(){
   const nome=document.getElementById('pf-nome').value.trim();
   const esp=document.getElementById('pf-esp').value.trim();
-  const email=document.getElementById('pf-email').value.trim();
-  const senha=document.getElementById('pf-senha').value;
-  const senha2=document.getElementById('pf-senha2').value;
+  const email=_currentUser?.email||perfil.email||'';
   const erro=document.getElementById('pf-erro');
   erro.style.display='none';
   if(!nome){erro.textContent='Informe seu nome.';erro.style.display='block';return;}
-  if(senha&&senha!==senha2){erro.textContent='As senhas não coincidem.';erro.style.display='block';return;}
-  perfil={nome,esp,email,senha:senha||perfil.senha};
+  perfil={nome,esp,email};
   savePerfil();
   atualizarUIperfil();
   fecharModalPerfil();
@@ -2677,7 +2661,6 @@ window.toggleDark          = toggleDark;
 window.abrirModalPerfil    = abrirModalPerfil;
 window.fecharModalPerfil   = fecharModalPerfil;
 window.salvarPerfil        = salvarPerfil;
-window.toggleSenhaPerfil   = toggleSenhaPerfil;
 window.atualizarAvatarPreview = atualizarAvatarPreview;
 window.abrirModalHosp      = abrirModalHosp;
 window.fecharModalHosp     = fecharModalHosp;

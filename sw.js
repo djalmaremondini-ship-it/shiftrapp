@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shiftr-v3';
+const CACHE_NAME = 'shiftr-v4';
 
 const ASSETS = [
   './index.html',
