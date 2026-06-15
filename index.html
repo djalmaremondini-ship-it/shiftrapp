@@ -1490,6 +1490,8 @@ function labelRegime(regime){
   if(regime==='pf')      return '👤 Pessoa física';
   return '';
 }
+
+function atualizarValoresHora(){
   const ds = parseFloat(document.getElementById('mh-ds').value)||0;
   const ns = parseFloat(document.getElementById('mh-ns').value)||0;
   const hd = document.getElementById('mh-hd');
@@ -3032,12 +3034,6 @@ function render(){
 const PK = 'plantoes_perfil_v1';
 let perfil = {nome:'', esp:'', email:'', senha:''};
 
-function loadPerfil(){
-  try{const p=localStorage.getItem(PK);if(p)perfil=JSON.parse(p);}catch(e){}
-}
-function savePerfil(){
-  try{localStorage.setItem(PK,JSON.stringify(perfil));}catch(e){}
-}
 function iniciais(nome){
   if(!nome) return '?';
   const p=nome.trim().split(/\s+/);
