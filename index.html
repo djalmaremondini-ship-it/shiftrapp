@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Shiftr">
 <link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./icon-192.svg">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <script>
 // Registrar Service Worker com detecção de atualização automática
 if('serviceWorker' in navigator){
@@ -82,12 +82,12 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 
 const firebaseConfig = {
- apiKey: "AIzaSyDH8QXbRqYJWXfNJuPzaIZEd35MjXZZjXk",
- authDomain: "shiftrapp-cbdc2.firebaseapp.com",
- projectId: "shiftrapp-cbdc2",
- storageBucket: "shiftrapp-cbdc2.firebasestorage.app",
- messagingSenderId: "41957390765",
- appId: "1:41957390765:web:8349c3cbaccd95f4478924"
+  apiKey: "AIzaSyDH8QXbRqYJWXfNJuPzaIZEd35MjXZZjXk",
+  authDomain: "shiftrapp-cbdc2.firebaseapp.com",
+  projectId: "shiftrapp-cbdc2",
+  storageBucket: "shiftrapp-cbdc2.firebasestorage.app",
+  messagingSenderId: "41957390765",
+  appId: "1:41957390765:web:8349c3cbaccd95f4478924"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -2596,20 +2596,31 @@ function iniciais(nome){
 }
 function atualizarUIperfil(){
   const av=document.getElementById('sb-avatar');
+  const avt=document.getElementById('tb-avatar');
   const info=document.getElementById('sb-perfil-info');
+  const temFoto = _currentUser?.photoURL;
+
   if(perfil.nome){
-    av.textContent=iniciais(perfil.nome);
-    av.className='perfil-avatar';
-    document.getElementById('sb-perfil-nome').textContent=perfil.nome;
-    document.getElementById('sb-perfil-esp').textContent=perfil.esp||'';
-    if(info){info.style.display='flex';}
+    // Só usa iniciais se não tiver foto do Google
+    if(!temFoto){
+      if(av){ av.textContent=iniciais(perfil.nome); av.className='perfil-avatar'; }
+      if(avt){ avt.textContent=iniciais(perfil.nome); avt.className='perfil-avatar'; }
+    } else {
+      // Garante que a foto do Google está aplicada e o texto está vazio
+      if(av){ av.style.background=`url(${temFoto}) center/cover no-repeat`; av.textContent=''; av.className='perfil-avatar'; }
+      if(avt){ avt.style.background=`url(${temFoto}) center/cover no-repeat`; avt.textContent=''; avt.className='perfil-avatar'; }
+    }
+    if(av) av.style.backgroundSize='cover';
+    const nm=document.getElementById('sb-perfil-nome');
+    const esp=document.getElementById('sb-perfil-esp');
+    if(nm) nm.textContent=perfil.nome;
+    if(esp) esp.textContent=perfil.esp||'';
+    if(info) info.style.display='flex';
   } else {
-    av.innerHTML='&#128100;';
-    av.className='perfil-avatar sem-perfil';
+    if(av){ av.innerHTML='&#128100;'; av.className='perfil-avatar sem-perfil'; av.style.background=''; }
+    if(avt){ avt.innerHTML='&#128100;'; avt.className='perfil-avatar sem-perfil'; avt.style.background=''; }
     if(info) info.style.display='none';
   }
-  const avm=document.getElementById('sb-avatar-m');
-  if(avm){avm.textContent=perfil.nome?iniciais(perfil.nome):'👤';avm.className=perfil.nome?'perfil-avatar':'perfil-avatar sem-perfil';}
 }
 
 function loadPerfil(){ perfil = {nome:'', esp:'', email:'', senha:''}; }
