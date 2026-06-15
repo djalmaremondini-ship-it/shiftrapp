@@ -1955,11 +1955,12 @@ function renderPrevisao(){
     ciclos.forEach(c=>{
       const totalBruto=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;}).reduce((a,p)=>a+p.valor,0);
       const taxa=cfg.taxa||0;
-      const total=totalBruto-taxa;
+      const desconto=totalBruto>0?taxa:0;
+      const total=totalBruto-desconto;
       const{status,badge,dias}=statusCiclo(c);
       const item=document.createElement('div');item.className='prev-item';
       item.style.marginBottom='4px';
-      const taxaLabel=taxa>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">taxa = -${brl(taxa)}</div>`:'';
+      const taxaLabel=desconto>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">taxa = -${brl(desconto)}</div>`:'';
       item.innerHTML=`<div class="prev-hdr"><span class="prev-periodo">${fmtD(c.inicio)} – ${fmtD(c.fim)}</span><span class="prev-badge ${badge}">${status}</span></div>`
         +`<div class="prev-body"><div><div class="prev-pgto">pagamento<br><strong>${fmtD(c.pagamento)}</strong></div><div class="prev-dias">${dias}</div></div>`
         +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>${taxaLabel}`
