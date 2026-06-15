@@ -1206,17 +1206,6 @@ function calcValor(hosp, turno, hIni, hFim, dateStr){
 function getHosp(id){ return hospitais.find(h=>h.id===id)||null; }
 
 // ═══════════════════════════════════════════════
-// PERSISTÊNCIA
-// ═══════════════════════════════════════════════
-function save(){ try{localStorage.setItem(SK,JSON.stringify(plantoes));localStorage.setItem(HK,JSON.stringify(hospitais));}catch(e){} }
-function load(){
-  try{
-    const p=localStorage.getItem(SK); if(p) plantoes=JSON.parse(p);
-    const h=localStorage.getItem(HK); if(h) hospitais=JSON.parse(h);
-  }catch(e){}
-}
-
-// ═══════════════════════════════════════════════
 // DARK MODE
 // ═══════════════════════════════════════════════
 function toggleDark(){
