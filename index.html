@@ -2612,9 +2612,15 @@ function savePerfil(){ saveFS(); }
 
 function atualizarAvatarPreview(){
   const nome=document.getElementById('pf-nome')?.value?.trim()||'';
-  const letra=nome?nome[0].toUpperCase():'?';
-  const prev=document.getElementById('pf-avatar-preview');
-  if(prev){ prev.textContent=letra; }
+  const prev=document.getElementById('mp-avatar-preview');
+  if(!prev) return;
+  if(_currentUser?.photoURL){
+    prev.style.background=`url(${_currentUser.photoURL}) center/cover no-repeat`;
+    prev.textContent='';
+  } else {
+    prev.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';
+    prev.textContent = nome ? iniciais(nome) : (perfil.nome ? iniciais(perfil.nome) : '?');
+  }
 }
 function abrirModalPerfil(){
   document.getElementById('pf-nome').value=perfil.nome||'';
