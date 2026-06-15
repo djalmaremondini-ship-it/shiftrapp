@@ -1310,12 +1310,12 @@ function atualizarValoresHora(){
   const ns = parseFloat(document.getElementById('mh-ns').value)||0;
   const hd = document.getElementById('mh-hd');
   const hn = document.getElementById('mh-hn');
-  // Usa o maior entre semana e FDS para o valor/hora (ou só semana se FDS=0)
   const baseD = ds > 0 ? ds : 0;
   const baseN = ns > 0 ? ns : 0;
   hd.value = baseD > 0 ? (baseD/12).toFixed(2) : '';
   hn.value = baseN > 0 ? (baseN/12).toFixed(2) : '';
 }
+function validarCorHosp(){
   const sel=document.getElementById('mh-cor');
   const aviso=document.getElementById('mh-cor-aviso');
   const usadas=hospitais.filter(h=>h.id!==editHospId).map(h=>h.cor.toLowerCase());
