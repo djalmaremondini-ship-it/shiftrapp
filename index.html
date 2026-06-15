@@ -1839,16 +1839,17 @@ function salvarRegrasHosp(hospId){
   const fim=   +document.getElementById('rh-fim-'+hospId).value||20;
   const pgto=  +document.getElementById('rh-pgto-'+hospId).value||15;
   const meses= +document.getElementById('rh-mp-'+hospId).value||1;
-  regrasHosp[hospId]={inicio,fim,pgto,mesesPgto:meses};
-  regras = regrasHosp; // mantém sincronizado
+  const taxa=  parseFloat(document.getElementById('rh-taxa-'+hospId).value)||0;
+  regrasHosp[hospId]={inicio,fim,pgto,mesesPgto:meses,taxa};
+  regras = regrasHosp;
   saveFS();
   const el=document.getElementById('rh-res-'+hospId);
-  if(el) el.textContent=`Dia ${inicio} ao ${fim} → pagto dia ${pgto} após ${meses} mês`;
+  if(el) el.textContent=resumoRegra({inicio,fim,pgto,mesesPgto:meses,taxa});
   renderPrevisao();
 }
 function getRegrasHosp(hospId){
   const r=regrasHosp[hospId];
-  return{inicio:r?.inicio||21,fim:r?.fim||20,pgto:r?.pgto||15,mesesPgto:r?.mesesPgto||1};
+  return{inicio:r?.inicio||21,fim:r?.fim||20,pgto:r?.pgto||15,mesesPgto:r?.mesesPgto||1,taxa:r?.taxa||0};
 }
 function toggleRegrasHosp(hospId){
   const p=document.getElementById('rh-painel-'+hospId);
@@ -1908,7 +1909,7 @@ function statusCiclo(c){
 }
 
 function resumoRegra(cfg){
-  return `Dia ${cfg.inicio} ao ${cfg.fim} → pagto dia ${cfg.pgto} após ${cfg.mesesPgto} mês`;
+  return `Dia ${cfg.inicio} ao ${cfg.fim} → pagto dia ${cfg.pgto} após ${cfg.mesesPgto} mês${cfg.taxa>0?' · taxa -'+brl(cfg.taxa):''}`;
 }
 
 function renderPrevisao(){
@@ -1942,6 +1943,7 @@ function renderPrevisao(){
       +`<div class="field"><label>Fim ciclo dia</label><input type="number" id="rh-fim-${h.id}" min="1" max="28" value="${cfg.fim}" onchange="salvarRegrasHosp('${h.id}')"></div>`
       +`<div class="field"><label>Pagamento dia</label><input type="number" id="rh-pgto-${h.id}" min="1" max="28" value="${cfg.pgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
       +`<div class="field"><label>Meses após fim</label><input type="number" id="rh-mp-${h.id}" min="1" max="3" value="${cfg.mesesPgto}" onchange="salvarRegrasHosp('${h.id}')"></div>`
+      +`<div class="field"><label>Taxa operadora (R$)</label><input type="number" id="rh-taxa-${h.id}" min="0" step="0.01" placeholder="0,00" value="${cfg.taxa||''}" onchange="salvarRegrasHosp('${h.id}')"></div>`
       +`<div class="prev-resumo-regra" id="rh-res-${h.id}">${resumoRegra(cfg)}</div>`;
     const hospBody=document.createElement('div');
     hospBody.className='prev-hosp-body';
@@ -1951,13 +1953,16 @@ function renderPrevisao(){
     // lista vertical de ciclos
     const cicloList=document.createElement('div');
     ciclos.forEach(c=>{
-      const total=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;}).reduce((a,p)=>a+p.valor,0);
+      const totalBruto=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;}).reduce((a,p)=>a+p.valor,0);
+      const taxa=cfg.taxa||0;
+      const total=totalBruto-taxa;
       const{status,badge,dias}=statusCiclo(c);
       const item=document.createElement('div');item.className='prev-item';
       item.style.marginBottom='4px';
+      const taxaLabel=taxa>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px;">taxa = -${brl(taxa)}</div>`:'';
       item.innerHTML=`<div class="prev-hdr"><span class="prev-periodo">${fmtD(c.inicio)} – ${fmtD(c.fim)}</span><span class="prev-badge ${badge}">${status}</span></div>`
         +`<div class="prev-body"><div><div class="prev-pgto">pagamento<br><strong>${fmtD(c.pagamento)}</strong></div><div class="prev-dias">${dias}</div></div>`
-        +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>`
+        +`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="prev-val${status==='Parcial'?' parcial':''}">${brl(total)}</div>${taxaLabel}`
         +`<button class="btn-pdf" data-ini="${c.inicio.getTime()}" data-fim="${c.fim.getTime()}" data-pgto="${fmtD(c.pagamento)}" data-hosp="${h.id}">&#128196; PDF</button></div></div>`;
       cicloList.appendChild(item);
     });
