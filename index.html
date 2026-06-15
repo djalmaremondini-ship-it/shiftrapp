@@ -79,7 +79,7 @@ function instalarPWA(){
 <script type="module" id="firebase-init">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, getDocs, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 
 const firebaseConfig = {
@@ -103,7 +103,7 @@ initializeAppCheck(app, {
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-window._fb = { auth, db, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot, collection };
+window._fb = { auth, db, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, doc, getDoc, setDoc, deleteDoc, getDocs, onSnapshot, collection };
 window._fbReady = true;
 window.dispatchEvent(new Event('fb-ready'));
 </script>
@@ -1229,8 +1229,7 @@ async function carregarDoFirestore(uid){
     loadTema();
     atualizarUIperfil();
     render();
-    renderDocs();
-    setTimeout(verificarAlertas, 800);
+    carregarDocsFirestore();
   }, (err)=>{
     console.warn('Erro no listener Firestore:',err);
     showSyncBar('Erro de conexão ⚠');
@@ -1241,10 +1240,11 @@ async function _salvarFirestore(uid){
   if(!uid||!window._fbReady) return;
   const {db, doc, setDoc} = window._fb;
   showSyncBar('Salvando...', false);
-  _ignorarProximoSnapshot = true; // evita re-render desnecessário após o próprio save
+  _ignorarProximoSnapshot = true;
   try{
+    // Dados principais — documentos ficam na subcoleção separada
     await setDoc(doc(db,'usuarios',uid),{
-      plantoes, hospitais, regras, perfil, documentos,
+      plantoes, hospitais, regras, perfil,
       tema: localStorage.getItem(DK)||'dark',
       updatedAt: new Date().toISOString()
     });
@@ -1254,6 +1254,40 @@ async function _salvarFirestore(uid){
     showSyncBar('Erro ao salvar ⚠');
     console.error(e);
   }
+}
+
+// Salvar documento individual na subcoleção /usuarios/{uid}/documentos/{docId}
+async function salvarDocFirestore(docItem){
+  const uid = _currentUser?.uid;
+  if(!uid||!window._fbReady) return;
+  const {db, doc, setDoc} = window._fb;
+  try{
+    await setDoc(doc(db,'usuarios',uid,'documentos',docItem.id), docItem);
+    showSyncBar('Documento salvo ✓');
+  }catch(e){ showSyncBar('Erro ao salvar documento ⚠'); console.error(e); }
+}
+
+// Excluir documento da subcoleção
+async function excluirDocFirestore(docId){
+  const uid = _currentUser?.uid;
+  if(!uid||!window._fbReady) return;
+  const {db, doc, deleteDoc} = window._fb;
+  try{
+    await deleteDoc(doc(db,'usuarios',uid,'documentos',docId));
+  }catch(e){ console.error('Erro ao excluir doc:', e); }
+}
+
+// Carregar documentos da subcoleção
+async function carregarDocsFirestore(){
+  const uid = _currentUser?.uid;
+  if(!uid||!window._fbReady) return;
+  const {db, collection, getDocs} = window._fb;
+  try{
+    const snap = await getDocs(collection(db,'usuarios',uid,'documentos'));
+    documentos = snap.docs.map(d=>d.data());
+    renderDocs();
+    setTimeout(verificarAlertas, 300);
+  }catch(e){ console.error('Erro ao carregar docs:', e); }
 }
 
 function saveFS(){
@@ -1963,31 +1997,35 @@ function salvarDoc(){
   btn.textContent='Salvando...'; btn.disabled=true;
 
   const docAtual = editDocId ? documentos.find(d=>d.id===editDocId) : null;
+  const novoId = editDocId || uid();
   const dados={
+    id:        novoId,
     tipo:      document.getElementById('md-tipo').value,
     nome,
     inst:      document.getElementById('md-inst').value.trim(),
     validade:  document.getElementById('md-val').value||null,
-    // mantém arquivo anterior se não subiu novo
     arquivo:     _docArquivoBase64 || docAtual?.arquivo || null,
     arquivoMime: _docArquivoMime   || docAtual?.arquivoMime || null,
     arquivoNome: _docArquivoNome   || docAtual?.arquivoNome || null,
     arquivoSize: _docArquivoBase64 ? Math.round((_docArquivoBase64.length*3)/4) : (docAtual?.arquivoSize||0)
   };
   if(editDocId){
-    const d=documentos.find(x=>x.id===editDocId); if(d) Object.assign(d,dados);
+    const idx=documentos.findIndex(x=>x.id===editDocId);
+    if(idx>=0) documentos[idx]=dados; else documentos.push(dados);
   } else {
-    documentos.push({id:uid(),...dados});
+    documentos.push(dados);
   }
-  save();
+  // Salva na subcoleção — cada doc tem seu próprio espaço
+  salvarDocFirestore(dados);
   btn.textContent='Salvar'; btn.disabled=false;
   fecharModalDoc(); renderDocs(); verificarAlertas();
 }
 
 function excluirDoc(){
   if(!editDocId||!confirm('Excluir este documento?')) return;
+  excluirDocFirestore(editDocId);
   documentos=documentos.filter(d=>d.id!==editDocId);
-  save(); fecharModalDoc(); renderDocs(); verificarAlertas();
+  fecharModalDoc(); renderDocs(); verificarAlertas();
 }
 
 function verDocumento(){
