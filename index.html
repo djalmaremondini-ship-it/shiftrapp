@@ -1498,7 +1498,7 @@ function labelRegime(regime){
   const baseN = ns > 0 ? ns : 0;
   hd.value = baseD > 0 ? (baseD/12).toFixed(2) : '';
   hn.value = baseN > 0 ? (baseN/12).toFixed(2) : '';
-
+}
 function validarCorHosp(){
   const sel=document.getElementById('mh-cor');
   const aviso=document.getElementById('mh-cor-aviso');
@@ -1991,8 +1991,15 @@ function excluirDoc(){
 function verDocumento(){
   const doc=documentos.find(d=>d.id===editDocId);
   if(!doc?.arquivo) return;
-  const dataUrl=`data:${doc.arquivoMime};base64,${doc.arquivo}`;
-  window.open(dataUrl,'_blank');
+  // Converte base64 para Blob e abre como URL de objeto
+  const byteChars = atob(doc.arquivo);
+  const byteArr = new Uint8Array(byteChars.length);
+  for(let i=0;i<byteChars.length;i++) byteArr[i]=byteChars.charCodeAt(i);
+  const blob = new Blob([byteArr], {type: doc.arquivoMime||'application/pdf'});
+  const blobUrl = URL.createObjectURL(blob);
+  const win = window.open(blobUrl, '_blank');
+  // Libera memória após abrir
+  if(win) setTimeout(()=>URL.revokeObjectURL(blobUrl), 10000);
 }
 
 function baixarDocumento(){
