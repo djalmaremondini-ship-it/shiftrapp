@@ -10,40 +10,68 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Shiftr">
-<link rel="manifest" id="pwa-manifest">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.svg">
 <script>
-// PWA Manifest inline
-const manifest = {
-  name: "Shiftr",
-  short_name: "Shiftr",
-  description: "Controle de plantões médicos",
-  start_url: "./",
-  display: "standalone",
-  background_color: "#0f0f11",
-  theme_color: "#7c6af7",
-  orientation: "portrait-primary",
-  icons: [
-    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%237c6af7'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
-    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%237c6af7'/%3E%3Ctext x='256' y='360' font-size='280' text-anchor='middle' fill='white' font-family='monospace' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
-  ]
-};
-const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
-
-// Service Worker
+// Registrar Service Worker com detecção de atualização automática
 if('serviceWorker' in navigator){
-  const swCode = `
-const CACHE = 'shiftr-v1';
-const ASSETS = ['./', './index.html'];
-self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())));
-self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch', e => {
-  if(e.request.method !== 'GET') return;
-  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(CACHE).then(cache => cache.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+
+      // Checa por updates a cada 60 segundos (app aberto em background)
+      setInterval(() => reg.update(), 60000);
+
+      // Detecta quando novo SW está esperando para ativar
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            mostrarToastUpdate();
+          }
+        });
+      });
+    }).catch(e => console.warn('SW erro:', e));
+
+    // Quando o SW ativa (depois do usuário aceitar update)
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+
+    // Mensagem do SW avisando que foi atualizado
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(e.data?.type === 'SW_UPDATED') mostrarToastUpdate();
+    });
+  });
+}
+
+function mostrarToastUpdate(){
+  const toast = document.getElementById('toast-update');
+  if(toast) toast.style.display = 'flex';
+}
+function aplicarUpdate(){
+  navigator.serviceWorker.controller?.postMessage({type:'SKIP_WAITING'});
+  document.getElementById('toast-update').style.display = 'none';
+}
+
+// Banner de instalação PWA
+let _deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _deferredPrompt = e;
+  const btn = document.getElementById('btn-instalar-pwa');
+  if(btn) btn.style.display = 'flex';
 });
-`;
-  const swBlob = new Blob([swCode], {type:'text/javascript'});
-  navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+window.addEventListener('appinstalled', () => {
+  _deferredPrompt = null;
+  const btn = document.getElementById('btn-instalar-pwa');
+  if(btn) btn.style.display = 'none';
+  const msg = document.getElementById('pwa-installed-msg');
+  if(msg){ msg.style.display='block'; setTimeout(()=>msg.style.display='none',3000); }
+});
+function instalarPWA(){
+  if(!_deferredPrompt) return;
+  _deferredPrompt.prompt();
+  _deferredPrompt.userChoice.then(()=>{ _deferredPrompt=null; });
 }
 </script>
 <!-- Firebase -->
@@ -51,21 +79,29 @@ self.addEventListener('fetch', e => {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDH8QXbRqYJWXfNJuPzaIZEd35MjXZZjXk",
-  authDomain: "shiftrapp-cbdc2.firebaseapp.com",
-  projectId: "shiftrapp-cbdc2",
-  storageBucket: "shiftrapp-cbdc2.firebasestorage.app",
-  messagingSenderId: "41957390765",
-  appId: "1:41957390765:web:8349c3cbaccd95f4478924"
+ apiKey: "AIzaSyDH8QXbRqYJWXfNJuPzaIZEd35MjXZZjXk",
+ authDomain: "shiftrapp-cbdc2.firebaseapp.com",
+ projectId: "shiftrapp-cbdc2",
+ storageBucket: "shiftrapp-cbdc2.firebasestorage.app",
+ messagingSenderId: "41957390765",
+ appId: "1:41957390765:web:8349c3cbaccd95f4478924"
 };
 
 const app = initializeApp(firebaseConfig);
+
+// App Check — proteção extra: só seu domínio pode usar o Firebase
+// SUBSTITUA pela sua chave reCAPTCHA v3 (ver instruções abaixo)
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider('6LegsSAtAAAAAHoJWU0bhGXO3sgOqVlWn9U50eob'),
+  isTokenAutoRefreshEnabled: true
+});
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Expor globalmente para o código principal
 window._fb = { auth, db, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, doc, getDoc, setDoc, onSnapshot, collection };
 window._fbReady = true;
 window.dispatchEvent(new Event('fb-ready'));
@@ -710,6 +746,13 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
   <span id="sync-msg">Sincronizando...</span>
 </div>
 
+<!-- TOAST DE ATUALIZAÇÃO -->
+<div id="toast-update" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9998;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--radius);padding:12px 16px;box-shadow:var(--shadow-lg);align-items:center;gap:12px;font-family:var(--mono);font-size:11px;color:var(--text);white-space:nowrap;">
+  <span>🔄 Nova versão disponível</span>
+  <button onclick="aplicarUpdate()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:10px;cursor:pointer;font-weight:600;">Atualizar</button>
+  <button onclick="document.getElementById('toast-update').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;">✕</button>
+</div>
+
 <!-- Mobile topbar -->
 <div class="topbar-mobile">
   <span class="tb-logo">Shiftr</span>
@@ -929,6 +972,14 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
+    <!-- Instalar PWA -->
+    <div class="sb-sec">
+      <button id="btn-instalar-pwa" onclick="instalarPWA()" style="display:none;width:100%;align-items:center;justify-content:center;gap:8px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.07em;padding:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);cursor:pointer;box-shadow:0 4px 14px var(--accent-glow);">
+        ⬇ Instalar Shiftr no celular
+      </button>
+      <div id="pwa-installed-msg" style="display:none;font-family:var(--mono);font-size:9px;color:var(--green);text-align:center;padding:6px;">✓ App instalado</div>
+    </div>
+
     <!-- Logout -->
     <div class="sb-sec" style="margin-top:auto;">
       <button class="btn-action danger" onclick="logout()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;">
@@ -1008,30 +1059,45 @@ function logout(){
   window._fb.signOut(window._fb.auth);
 }
 
+let _unsubSnapshot = null; // listener em tempo real
+let _ignorarProximoSnapshot = false; // evita loop ao salvar
+
 async function carregarDoFirestore(uid){
-  const {db, doc, getDoc} = window._fb;
+  const {db, doc, onSnapshot} = window._fb;
   showSyncBar('Carregando seus dados...', false);
-  try{
-    const snap = await getDoc(doc(db,'usuarios',uid));
+
+  // Cancela listener anterior se existir
+  if(_unsubSnapshot){ _unsubSnapshot(); _unsubSnapshot=null; }
+
+  // onSnapshot — escuta mudanças em tempo real no documento do usuário
+  _unsubSnapshot = onSnapshot(doc(db,'usuarios',uid), (snap) => {
+
+    // Ignora o echo imediato após nosso próprio save
+    if(_ignorarProximoSnapshot){ _ignorarProximoSnapshot=false; return; }
+
     if(snap.exists()){
       const d = snap.data();
       if(Array.isArray(d.plantoes))  plantoes  = d.plantoes;
       if(Array.isArray(d.hospitais)) hospitais = d.hospitais;
-      if(d.regras && typeof d.regras==='object') regras = d.regras;
+      if(d.regras && typeof d.regras==='object') { regras=d.regras; regrasHosp=regras; }
       if(d.perfil && typeof d.perfil==='object') perfil = {...perfil, ...d.perfil};
       if(d.tema) localStorage.setItem(DK, d.tema);
     }
-  }catch(e){ console.warn('Erro ao carregar Firestore:',e); }
-  showSyncBar('Pronto ✓');
-  loadTema();
-  atualizarUIperfil();
-  render();
+    showSyncBar('Sincronizado ✓');
+    loadTema();
+    atualizarUIperfil();
+    render();
+  }, (err)=>{
+    console.warn('Erro no listener Firestore:',err);
+    showSyncBar('Erro de conexão ⚠');
+  });
 }
 
 async function _salvarFirestore(uid){
   if(!uid||!window._fbReady) return;
   const {db, doc, setDoc} = window._fb;
   showSyncBar('Salvando...', false);
+  _ignorarProximoSnapshot = true; // evita re-render desnecessário após o próprio save
   try{
     await setDoc(doc(db,'usuarios',uid),{
       plantoes, hospitais, regras, perfil,
@@ -1039,7 +1105,11 @@ async function _salvarFirestore(uid){
       updatedAt: new Date().toISOString()
     });
     showSyncBar('Salvo ✓');
-  }catch(e){ showSyncBar('Erro ao salvar ⚠'); console.error(e); }
+  }catch(e){
+    _ignorarProximoSnapshot = false;
+    showSyncBar('Erro ao salvar ⚠');
+    console.error(e);
+  }
 }
 
 function saveFS(){
