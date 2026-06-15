@@ -778,15 +778,21 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     </div>
     <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Valores plantão 12h (R$)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div class="modal-field"><label>☀ Diurno — semana</label><input type="number" id="mh-ds" min="0" step="10" placeholder="0,00"></div>
-      <div class="modal-field"><label>☀ Diurno — FDS</label><input type="number" id="mh-df" min="0" step="10" placeholder="0,00"></div>
-      <div class="modal-field"><label>☽ Noturno — semana</label><input type="number" id="mh-ns" min="0" step="10" placeholder="0,00"></div>
-      <div class="modal-field"><label>☽ Noturno — FDS</label><input type="number" id="mh-nf" min="0" step="10" placeholder="0,00"></div>
+      <div class="modal-field"><label>☀ Diurno — semana</label><input type="number" id="mh-ds" min="0" step="10" placeholder="0,00" oninput="atualizarValoresHora()"></div>
+      <div class="modal-field"><label>☀ Diurno — FDS</label><input type="number" id="mh-df" min="0" step="10" placeholder="0,00" oninput="atualizarValoresHora()"></div>
+      <div class="modal-field"><label>☽ Noturno — semana</label><input type="number" id="mh-ns" min="0" step="10" placeholder="0,00" oninput="atualizarValoresHora()"></div>
+      <div class="modal-field"><label>☽ Noturno — FDS</label><input type="number" id="mh-nf" min="0" step="10" placeholder="0,00" oninput="atualizarValoresHora()"></div>
     </div>
-    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Valor hora — plantões parciais (R$)</div>
+    <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:10px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Valor hora — calculado automaticamente (÷12)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div class="modal-field"><label>☀ Diurno</label><input type="number" id="mh-hd" min="0" step="1" placeholder="auto"></div>
-      <div class="modal-field"><label>☽ Noturno</label><input type="number" id="mh-hn" min="0" step="1" placeholder="auto"></div>
+      <div class="modal-field">
+        <label>☀ Diurno</label>
+        <input type="text" id="mh-hd" readonly placeholder="—" style="opacity:.6;cursor:default;background:var(--surface3);">
+      </div>
+      <div class="modal-field">
+        <label>☽ Noturno</label>
+        <input type="text" id="mh-hn" readonly placeholder="—" style="opacity:.6;cursor:default;background:var(--surface3);">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="fecharModalHosp()">Cancelar</button>
@@ -1299,7 +1305,17 @@ function popularSelectCores(corAtual){
   }
 }
 
-function validarCorHosp(){
+function atualizarValoresHora(){
+  const ds = parseFloat(document.getElementById('mh-ds').value)||0;
+  const ns = parseFloat(document.getElementById('mh-ns').value)||0;
+  const hd = document.getElementById('mh-hd');
+  const hn = document.getElementById('mh-hn');
+  // Usa o maior entre semana e FDS para o valor/hora (ou só semana se FDS=0)
+  const baseD = ds > 0 ? ds : 0;
+  const baseN = ns > 0 ? ns : 0;
+  hd.value = baseD > 0 ? (baseD/12).toFixed(2) : '';
+  hn.value = baseN > 0 ? (baseN/12).toFixed(2) : '';
+}
   const sel=document.getElementById('mh-cor');
   const aviso=document.getElementById('mh-cor-aviso');
   const usadas=hospitais.filter(h=>h.id!==editHospId).map(h=>h.cor.toLowerCase());
@@ -1317,10 +1333,9 @@ function abrirModalHosp(id=null){
   document.getElementById('mh-df').value=h?h.df:'';
   document.getElementById('mh-ns').value=h?h.ns:'';
   document.getElementById('mh-nf').value=h?h.nf:'';
-  document.getElementById('mh-hd').value=h?h.hd:'';
-  document.getElementById('mh-hn').value=h?h.hn:'';
   document.getElementById('mh-del').style.display=h?'block':'none';
   document.getElementById('modal-hosp').classList.add('open');
+  atualizarValoresHora(); // sempre recalcula ao abrir
 }
 function fecharModalHosp(){ document.getElementById('modal-hosp').classList.remove('open'); editHospId=null; }
 function salvarHosp(){
@@ -1333,10 +1348,9 @@ function salvarHosp(){
   const df=parseFloat(document.getElementById('mh-df').value)||ds;
   const ns=parseFloat(document.getElementById('mh-ns').value)||0;
   const nf=parseFloat(document.getElementById('mh-nf').value)||ns;
-  const hdRaw=document.getElementById('mh-hd').value;
-  const hnRaw=document.getElementById('mh-hn').value;
-  const hd=hdRaw?parseFloat(hdRaw):ds/12;
-  const hn=hnRaw?parseFloat(hnRaw):ns/12;
+  // Sempre calcula hd e hn automaticamente — ignora o campo readonly
+  const hd = ds > 0 ? ds/12 : 0;
+  const hn = ns > 0 ? ns/12 : 0;
   const dados={nome,cor,ds,df,ns,nf,hd,hn};
   if(editHospId){
     const h=getHosp(editHospId); if(h) Object.assign(h,dados);
@@ -2675,6 +2689,7 @@ window.deletarHosp         = deletarHosp;
 window.selecionarHosp      = selecionarHosp;
 window.selecionarHospModal = selecionarHospModal;
 window.validarCorHosp      = validarCorHosp;
+window.atualizarValoresHora = atualizarValoresHora;
 window.abrirModalPlantao   = abrirModalPlantao;
 window.fecharModalPlantao  = fecharModalPlantao;
 window.confirmarPlantao    = confirmarPlantao;
