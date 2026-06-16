@@ -2993,7 +2993,24 @@ function setPage(p){
     document.getElementById('page-'+id).classList.toggle('active', id===p);
     document.getElementById('nav-'+id).classList.toggle('active', id===p);
   });
-  if(p==='dash') renderDashboard();
+  if(p==='dash'){
+    renderDashboard();
+    const mc=document.querySelector('.main-content');
+    if(mc) mc.scrollTop=0;
+  }
+  if(p==='cal'){
+    // Sempre rola para o mês atual ao abrir o calendário
+    setTimeout(()=>{
+      const mesAtual=new Date().getMonth();
+      const el=document.getElementById('month-card-'+mesAtual);
+      const mc=document.querySelector('.main-content');
+      if(el && mc){
+        mc.scrollTo({top: Math.max(0, el.offsetTop-60), behavior:'smooth'});
+      } else if(el){
+        el.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    }, 80);
+  }
 }
 
 function renderDashboard(){
@@ -3138,10 +3155,12 @@ function renderDashboard(){
 
             let corBarra, corLabel, label, bordaAtual='';
             if(isPassado){
-              // Passado — verde se atingiu, vermelho se não
-              corBarra=p>=100?'var(--green)':'var(--red)';
-              corLabel=p>=100?'var(--green)':'var(--red)';
-              label=`${p}%`;
+              // Verde se atingiu ou superou a meta (incluindo meta=0)
+              // Vermelho apenas se meta > 0 e não foi atingida
+              const atingiu = mm===0 ? true : real>=mm;
+              corBarra = atingiu ? 'var(--green)' : 'var(--red)';
+              corLabel = atingiu ? 'var(--green)' : 'var(--red)';
+              label    = mm===0 ? '✓' : `${p}%`;
             } else {
               const atingeMeta = mm>0 ? real>=mm : false;
               const isHoje = dataPgtoMes && Math.abs(dataPgtoMes-hoje)<(31*24*60*60*1000);
@@ -3496,14 +3515,16 @@ function render(){
   renderPrevisao();
   renderMiniCal();
   if(document.getElementById('page-dash').classList.contains('active')) renderDashboard();
-  // scroll para o mês atual apenas no primeiro render do ano atual
+  // Na primeira abertura, rola para o mês atual
   if(_primeiroRender && anoAtual===new Date().getFullYear()){
     _primeiroRender=false;
-    const mesAtual=new Date().getMonth();
     setTimeout(()=>{
+      const mesAtual=new Date().getMonth();
       const el=document.getElementById('month-card-'+mesAtual);
-      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
-    }, 80);
+      const mc=document.querySelector('.main-content');
+      if(el && mc) mc.scrollTo({top:Math.max(0,el.offsetTop-60),behavior:'smooth'});
+      else if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    }, 300);
   }
 }
 
