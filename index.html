@@ -2008,25 +2008,25 @@ function gerarRelatorioIRAnual(){
       totalBrutoH+=bruto; totalTaxaH+=taxa; totalIRH+=ir; totalLiqH+=liquido;
 
       checkPage(7);
-      if(linePar) rect(ml,y-3.5,pw,5.5,[38,36,55]);
+      if(linePar) rect(ml,y-3.5,pw,5.5,[242,241,248]);
       linePar=!linePar;
 
-      setFont(7,'normal',[200,198,215]);
+      setFont(7,'normal',[30,28,40]);
       txt(`${fmtD(c.inicio)} - ${fmtD(c.fim)}`, C.periodo.x+1, y);
       txt(fmtD(c.pagamento), C.pgto.x+1, y);
-      setFont(7,'normal', bruto>0?[200,198,215]:[100,98,115]);
+      setFont(7,'normal', bruto>0?[30,28,40]:[150,148,160]);
       txt(brl(bruto), colRight('bruto'), y, 'right');
       if(taxa>0){
-        setFont(7,'normal',[180,130,100]);
+        setFont(7,'normal',[160,90,30]);
         txt('-'+brl(taxa), colRight('taxa'), y, 'right');
       }
       if(ir>0){
-        setFont(7,'bold',[220,150,80]);
+        setFont(7,'bold',[180,80,0]);
         txt('-'+brl(ir), colRight('ir'), y, 'right');
-        setFont(7,'bold',[100,200,130]);
+        setFont(7,'bold',[0,130,60]);
         txt(brl(liquido), colRight('liq'), y, 'right');
       } else if(regime==='empresa'&&bruto>0){
-        setFont(7,'normal',[120,118,140]);
+        setFont(7,'normal',[140,138,155]);
         txt('(emp.)', colRight('liq'), y, 'right');
       }
       y+=5.5;
@@ -2107,13 +2107,13 @@ function gerarRelatorioIRAnual(){
   Object.values(grupos).forEach(g=>{
     if(g.bruto===0) return;
     checkPage(6);
-    setFont(8,'normal',[200,198,215]);
+    setFont(8,'normal',[30,28,40]);
     txt(g.label, ml+2, y);
     txt(brl(g.bruto), colRight('bruto'), y, 'right');
-    if(g.taxa>0){ setFont(8,'normal',[180,130,100]); txt('-'+brl(g.taxa), colRight('taxa'), y, 'right'); }
-    setFont(8,'bold',[220,150,80]);
+    if(g.taxa>0){ setFont(8,'normal',[160,90,30]); txt('-'+brl(g.taxa), colRight('taxa'), y, 'right'); }
+    setFont(8,'bold',[180,80,0]);
     txt(g.ir>0?'-'+brl(g.ir):'—', colRight('ir'), y, 'right');
-    setFont(8,'bold',[80,200,130]);
+    setFont(8,'bold',[0,130,60]);
     txt(brl(g.liq), colRight('liq'), y, 'right');
     y+=6;
   });
@@ -3083,9 +3083,11 @@ function renderDashboard(){
 
             let corBarra, corLabel, label, bordaAtual='';
             if(isFuturo){
-              corBarra='var(--border2)';
-              corLabel='var(--text3)';
-              label=mm>0?brl(mm):'—';
+              // Futuro — laranja se previsto >= meta, vermelho se abaixo
+              const atingeMeta = mm>0 ? real>=mm : false;
+              corBarra = mm>0 ? (atingeMeta?'var(--sun)':'var(--red)') : 'var(--border2)';
+              corLabel = mm>0 ? (atingeMeta?'var(--sun)':'var(--red)') : 'var(--text3)';
+              label = mm>0 ? (atingeMeta?'prev ✓':'prev ✗') : 'prev';
             } else if(isAtual){
               corBarra='var(--sun)';
               corLabel='var(--sun)';
@@ -3101,7 +3103,8 @@ function renderDashboard(){
             return`<div style="text-align:center;cursor:pointer;" onclick="abrirModalMeta(${i})" title="${MESES[i]}: meta ${brl(mm)} · previsto ${brl(real)}">
               <div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px;">${MESES[i].slice(0,3)}</div>
               <div style="height:32px;background:var(--surface2);border-radius:4px;${bordaAtual}overflow:hidden;position:relative;">
-                ${isFuturo?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;color:var(--text3);">${mm>0?'prev':'—'}</div>`
+                ${isFuturo?`<div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${corBarra};opacity:.55;transition:height .4s;"></div>
+                   <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;color:${corLabel};font-weight:600;">${label}</div>`
                   :`<div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${corBarra};transition:height .5s;opacity:${isAtual?.85:1};"></div>
                    ${isAtual?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);">${p}%</div>`:''}
                   `}
