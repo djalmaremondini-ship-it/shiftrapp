@@ -1919,53 +1919,83 @@ function confirmarMeta(){
 function gerarRelatorioIRAnual(){
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
-  const ml=14,mr=196,pw=mr-ml;
-  let y=14;
-  const LINE=5.5;
+  const ml=12, mr=198, pw=mr-ml;
+  let y=0;
 
-  // Cabeçalho
-  doc.setFillColor(30,28,40);
-  doc.rect(0,0,210,28,'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(14);
-  doc.setTextColor(165,148,255);
-  doc.text('Shiftr — Relatório Anual de IR',ml,10);
-  doc.setFontSize(9);
-  doc.setTextColor(150,150,170);
-  doc.text(`${perfil.nome||'Médico'}  ·  Ano ${anoAtual}  ·  Gerado em ${new Date().toLocaleDateString('pt-BR')}`,ml,16);
-  doc.setFontSize(8);
-  doc.text('Este relatório é informativo. Consulte seu contador para declaração oficial.',ml,22);
-  y=36;
-
-  const addLinha=(txt,negrito=false,cor=[40,40,50])=>{
-    doc.setFont('helvetica',negrito?'bold':'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...cor);
-    doc.text(txt,ml,y);
-    y+=LINE;
+  // ── Helpers ──────────────────────────────────
+  const setFont=(sz,style='normal',color=[40,40,50])=>{
+    doc.setFont('helvetica',style);
+    doc.setFontSize(sz);
+    doc.setTextColor(...color);
   };
-  const addSep=()=>{ doc.setDrawColor(200,200,220); doc.line(ml,y,mr,y); y+=3; };
+  const txt=(t,x,yy,align='left')=>doc.text(String(t),x,yy,{align});
+  const linha=(yy,cor=[220,218,235])=>{
+    doc.setDrawColor(...cor);
+    doc.setLineWidth(0.2);
+    doc.line(ml,yy,mr,yy);
+  };
+  const rect=(x,yy,w,h,cor)=>{
+    doc.setFillColor(...cor);
+    doc.rect(x,yy,w,h,'F');
+  };
+  const novaPage=()=>{ doc.addPage(); y=14; };
+  const checkPage=(h=8)=>{ if(y+h>280) novaPage(); };
 
-  hospitais.forEach(h=>{
+  // Colunas da tabela
+  const C={
+    periodo:  {x:ml,    w:46},
+    pgto:     {x:ml+47, w:22},
+    bruto:    {x:ml+70, w:32},
+    taxa:     {x:ml+103,w:28},
+    ir:       {x:ml+132,w:28},
+    liq:      {x:ml+161,w:mr-(ml+161)},
+  };
+  const colRight=(col)=>C[col].x+C[col].w;
+
+  // ── CABEÇALHO ────────────────────────────────
+  rect(0,0,210,30,[22,20,36]);
+  setFont(15,'bold',[165,148,255]);
+  txt('Shiftr — Relatório Anual de IR',ml,12);
+  setFont(8,'normal',[180,175,210]);
+  txt(`${perfil.nome||'Médico'}   ·   Ano ${anoAtual}   ·   Gerado em ${new Date().toLocaleDateString('pt-BR')}`,ml,19);
+  setFont(7,'italic',[140,135,165]);
+  txt('Documento informativo. Consulte seu contador para declaração oficial.',ml,25);
+  y=38;
+
+  // ── HEADER TABELA ─────────────────────────────
+  const drawTableHeader=()=>{
+    rect(ml,y-4,pw,7,[45,42,65]);
+    setFont(7,'bold',[200,195,230]);
+    txt('PERÍODO',          C.periodo.x+1,y);
+    txt('PAGAMENTO',        C.pgto.x+1,   y);
+    txt('BRUTO',            colRight('bruto'),y,'right');
+    txt('TAXA',             colRight('taxa'),y,'right');
+    txt('IR',               colRight('ir'),y,'right');
+    txt('LÍQUIDO',          colRight('liq'),y,'right');
+    y+=5;
+  };
+
+  // ── POR HOSPITAL ─────────────────────────────
+  hospitais.forEach((h,hi)=>{
     const cfg=getRegrasHosp(h.id);
     const ciclos=gerarCiclos(cfg);
     const regime=h.regime||'empresa';
 
-    // cabeçalho do hospital
-    if(y>260){ doc.addPage(); y=14; }
-    doc.setFillColor(245,244,255);
-    doc.rect(ml,y-4,pw,7,'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(10);
-    doc.setTextColor(80,60,180);
-    doc.text(`${h.nome}`,ml+1,y);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    doc.setTextColor(120,120,140);
-    doc.text(labelRegime(regime)+(h.aliq>0?`  ·  ${h.aliq}% IR`:''),ml+1,y+4.5);
-    y+=10;
+    checkPage(20);
 
-    let totalBrutoH=0, totalTaxaH=0, totalIRH=0, totalLiqH=0;
+    // Cabeçalho do hospital
+    rect(ml,y-4,pw,9,[55,50,85]);
+    setFont(9,'bold',[165,148,255]);
+    txt(h.nome, ml+2, y);
+    setFont(7,'normal',[160,155,200]);
+    const regLabel=regime==='empresa'?'Empresa intermediaria':regime==='cnpj'?`CNPJ proprio - ${h.aliq||0}% IR`:'Pessoa fisica - Tabela progressiva';
+    txt(regLabel, mr-2, y, 'right');
+    y+=7;
+
+    drawTableHeader();
+
+    let totalBrutoH=0,totalTaxaH=0,totalIRH=0,totalLiqH=0;
+    let linePar=false;
 
     ciclos.forEach(c=>{
       if(c.pagamento.getFullYear()!==anoAtual) return;
@@ -1974,53 +2004,54 @@ function gerarRelatorioIRAnual(){
       const taxa=bruto>0?(cfg.taxa||0):0;
       const liq=bruto-taxa;
       const ir=calcIR(liq,regime,h.aliq||0);
-      totalBrutoH+=bruto; totalTaxaH+=taxa; totalIRH+=ir; totalLiqH+=(liq-ir);
+      const liquido=liq-ir;
+      totalBrutoH+=bruto; totalTaxaH+=taxa; totalIRH+=ir; totalLiqH+=liquido;
 
-      if(y>270){ doc.addPage(); y=14; }
-      const periodo=`${fmtD(c.inicio)} – ${fmtD(c.fim)}`;
-      const pgto=`Pgto: ${fmtD(c.pagamento)}`;
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(8);
-      doc.setTextColor(60,60,70);
-      doc.text(periodo,ml+2,y);
-      doc.text(pgto,ml+60,y);
-      doc.text(`Bruto: ${brl(bruto)}`,ml+100,y);
-      if(taxa>0) doc.text(`Taxa: -${brl(taxa)}`,ml+135,y);
-      if(regime!=='empresa'&&ir>0){
-        doc.setTextColor(200,100,0);
-        doc.text(`IR: -${brl(ir)}`,ml+160,y);
-        doc.setTextColor(60,60,70);
-        doc.text(`Líq: ${brl(liq-ir)}`,ml+178,y);
+      checkPage(7);
+      if(linePar) rect(ml,y-3.5,pw,5.5,[38,36,55]);
+      linePar=!linePar;
+
+      setFont(7,'normal',[200,198,215]);
+      txt(`${fmtD(c.inicio)} - ${fmtD(c.fim)}`, C.periodo.x+1, y);
+      txt(fmtD(c.pagamento), C.pgto.x+1, y);
+      setFont(7,'normal', bruto>0?[200,198,215]:[100,98,115]);
+      txt(brl(bruto), colRight('bruto'), y, 'right');
+      if(taxa>0){
+        setFont(7,'normal',[180,130,100]);
+        txt('-'+brl(taxa), colRight('taxa'), y, 'right');
       }
-      y+=LINE;
+      if(ir>0){
+        setFont(7,'bold',[220,150,80]);
+        txt('-'+brl(ir), colRight('ir'), y, 'right');
+        setFont(7,'bold',[100,200,130]);
+        txt(brl(liquido), colRight('liq'), y, 'right');
+      } else if(regime==='empresa'&&bruto>0){
+        setFont(7,'normal',[120,118,140]);
+        txt('(emp.)', colRight('liq'), y, 'right');
+      }
+      y+=5.5;
     });
 
-    // subtotal hospital
-    addSep();
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(8);
-    doc.setTextColor(40,40,50);
-    doc.text(`Total ${h.nome}`,ml+2,y);
-    doc.text(`Bruto: ${brl(totalBrutoH)}`,ml+100,y);
-    if(totalTaxaH>0) doc.text(`Taxa: -${brl(totalTaxaH)}`,ml+135,y);
+    // Subtotal hospital
+    checkPage(8);
+    linha(y-1,[80,75,110]);
+    rect(ml,y,pw,7,[42,38,62]);
+    setFont(8,'bold',[165,148,255]);
+    txt(`Total ${h.nome}`, ml+2, y+5);
+    setFont(8,'bold',[200,198,220]);
+    txt(brl(totalBrutoH), colRight('bruto'), y+5, 'right');
+    if(totalTaxaH>0){ setFont(8,'bold',[180,130,100]); txt('-'+brl(totalTaxaH), colRight('taxa'), y+5, 'right'); }
     if(regime!=='empresa'){
-      doc.setTextColor(200,100,0);
-      doc.text(`IR: -${brl(totalIRH)}`,ml+160,y);
-      doc.setTextColor(0,120,60);
-      doc.text(`Líq: ${brl(totalLiqH)}`,ml+178,y);
+      setFont(8,'bold',[220,150,80]);
+      txt('-'+brl(totalIRH), colRight('ir'), y+5, 'right');
+      setFont(8,'bold',[80,200,130]);
+      txt(brl(totalLiqH), colRight('liq'), y+5, 'right');
     }
-    y+=8;
+    y+=12;
   });
 
-  // Totais gerais
-  if(y>250){ doc.addPage(); y=14; }
-  doc.setFillColor(30,28,40);
-  doc.rect(ml,y-4,pw,8,'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(9);
-  doc.setTextColor(165,148,255);
-
-  // calcular totais
+  // ── TOTAL GERAL ───────────────────────────────
+  checkPage(18);
   let gBruto=0,gTaxa=0,gIR=0,gLiq=0;
   hospitais.forEach(h=>{
     const cfg=getRegrasHosp(h.id);
@@ -2034,21 +2065,66 @@ function gerarRelatorioIRAnual(){
       gBruto+=bruto; gTaxa+=taxa; gIR+=ir; gLiq+=(liq-ir);
     });
   });
-  doc.text(`TOTAL ANUAL ${anoAtual}`,ml+2,y);
-  doc.text(`Bruto: ${brl(gBruto)}`,ml+80,y);
-  if(gTaxa>0) doc.text(`Taxa: -${brl(gTaxa)}`,ml+120,y);
-  doc.setTextColor(245,166,35);
-  doc.text(`IR total: -${brl(gIR)}`,ml+150,y);
-  doc.setTextColor(46,194,126);
-  doc.text(`Líquido: ${brl(gLiq)}`,ml+175,y);
-  y+=14;
 
-  // Nota
-  doc.setFont('helvetica','italic');
-  doc.setFontSize(7);
-  doc.setTextColor(150,150,160);
-  doc.text('* Relatório gerado pelo Shiftr com base nos plantões cadastrados. Valores estimados.',ml,y);
-  doc.text('  Consulte seu contador para declaração de Imposto de Renda.',ml,y+4);
+  linha(y,[100,95,140]);
+  y+=3;
+  rect(ml,y,pw,11,[22,20,36]);
+  setFont(9,'bold',[165,148,255]);
+  txt(`TOTAL ANUAL ${anoAtual}`, ml+2, y+7);
+  setFont(9,'bold',[200,198,220]);
+  txt(brl(gBruto), colRight('bruto'), y+7, 'right');
+  if(gTaxa>0){ setFont(9,'bold',[180,130,100]); txt('-'+brl(gTaxa), colRight('taxa'), y+7, 'right'); }
+  setFont(9,'bold',[220,150,80]);
+  txt('-'+brl(gIR), colRight('ir'), y+7, 'right');
+  setFont(9,'bold',[80,220,140]);
+  txt(brl(gLiq), colRight('liq'), y+7, 'right');
+  y+=18;
+
+  // ── RESUMO IR POR REGIME ──────────────────────
+  checkPage(30);
+  setFont(8,'bold',[165,148,255]);
+  txt('Resumo por regime tributario', ml, y); y+=6;
+  linha(y-1,[80,75,110]);
+
+  const grupos={empresa:{label:'Empresa intermediaria',bruto:0,taxa:0,ir:0,liq:0},
+                cnpj:{label:'CNPJ proprio',bruto:0,taxa:0,ir:0,liq:0},
+                pf:{label:'Pessoa fisica',bruto:0,taxa:0,ir:0,liq:0}};
+  hospitais.forEach(h=>{
+    const r=h.regime||'empresa';
+    if(!grupos[r]) return;
+    const cfg=getRegrasHosp(h.id);
+    gerarCiclos(cfg).forEach(c=>{
+      if(c.pagamento.getFullYear()!==anoAtual) return;
+      const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+      const b=ps.reduce((a,p)=>a+p.valor,0);
+      const t=b>0?(cfg.taxa||0):0;
+      const l=b-t;
+      const ir=calcIR(l,r,h.aliq||0);
+      grupos[r].bruto+=b; grupos[r].taxa+=t; grupos[r].ir+=ir; grupos[r].liq+=(l-ir);
+    });
+  });
+
+  Object.values(grupos).forEach(g=>{
+    if(g.bruto===0) return;
+    checkPage(6);
+    setFont(8,'normal',[200,198,215]);
+    txt(g.label, ml+2, y);
+    txt(brl(g.bruto), colRight('bruto'), y, 'right');
+    if(g.taxa>0){ setFont(8,'normal',[180,130,100]); txt('-'+brl(g.taxa), colRight('taxa'), y, 'right'); }
+    setFont(8,'bold',[220,150,80]);
+    txt(g.ir>0?'-'+brl(g.ir):'—', colRight('ir'), y, 'right');
+    setFont(8,'bold',[80,200,130]);
+    txt(brl(g.liq), colRight('liq'), y, 'right');
+    y+=6;
+  });
+
+  // ── RODAPÉ ────────────────────────────────────
+  const totalPages=doc.getNumberOfPages();
+  for(let i=1;i<=totalPages;i++){
+    doc.setPage(i);
+    setFont(6,'italic',[120,118,140]);
+    doc.text(`Shiftr  ·  Relatorio Anual IR ${anoAtual}  ·  Pagina ${i}/${totalPages}`,105,292,{align:'center'});
+  }
 
   doc.save(`shiftr-ir-${anoAtual}.pdf`);
 }
@@ -2952,8 +3028,16 @@ function renderDashboard(){
   ${(()=>{
     const meta=getMeta(anoAtual);
     const metaAnual=meta.anual||0;
+    const mesAtualReal=new Date().getMonth();
+    const anoAtualReal=new Date().getFullYear();
+    // Total já recebido (meses passados) + previsto mês atual
+    const totalRecebido=anoAtual<anoAtualReal
+      ? porMesPgtoGlobal.reduce((a,m)=>a+m.total,0)
+      : porMesPgtoGlobal.slice(0,mesAtualReal+1).reduce((a,m)=>a+m.total,0);
+    // Total previsto incluindo meses futuros
     const totalPrevisto=porMesPgtoGlobal.reduce((a,m)=>a+m.total,0);
-    const pct=metaAnual>0?Math.min(Math.round(totalPrevisto/metaAnual*100),100):0;
+    const pct=metaAnual>0?Math.min(Math.round(totalRecebido/metaAnual*100),100):0;
+    const pctPrev=metaAnual>0?Math.min(Math.round(totalPrevisto/metaAnual*100),100):0;
     const falta=metaAnual>0?Math.max(metaAnual-totalPrevisto,0):0;
     const corPct=pct>=100?'var(--green)':pct>=70?'var(--accent2)':pct>=40?'var(--sun)':'var(--red)';
     return`<div class="dash-card" style="margin-bottom:14px;">
@@ -2973,22 +3057,56 @@ function renderDashboard(){
             ${falta>0?`<div style="font-family:var(--mono);font-size:10px;color:var(--sun);margin-top:2px;">faltam ${brl(falta)}</div>`:`<div style="font-family:var(--mono);font-size:10px;color:var(--green);margin-top:2px;">✓ Meta atingida!</div>`}
           </div>
         </div>
-        <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden;border:1px solid var(--border);">
-          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,${corPct},${corPct}cc);border-radius:6px;transition:width .5s;"></div>
+        <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden;border:1px solid var(--border);position:relative;">
+          <!-- Camada previsto (amarelo claro) -->
+          <div style="position:absolute;left:0;top:0;bottom:0;width:${pctPrev}%;background:rgba(245,166,35,.25);border-radius:6px;"></div>
+          <!-- Camada recebido (cor real) -->
+          <div style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:linear-gradient(90deg,${corPct},${corPct}cc);border-radius:6px;transition:width .5s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:4px;">
+          <span>🟡 Previsto: ${brl(totalPrevisto)}</span>
+          <span style="color:${corPct}">Recebido: ${brl(totalRecebido)}</span>
         </div>
         <!-- Metas mensais -->
         <div style="margin-top:10px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
           ${Array.from({length:12},(_,i)=>{
+            const mesAtual=new Date().getMonth();
+            const anoAtualReal=new Date().getFullYear();
             const mm=getMetaMes(anoAtual,i);
             const real=porMesPgtoGlobal[i].total;
             const p=mm>0?Math.min(Math.round(real/mm*100),100):0;
-            const c=p>=100?'var(--green)':p>=60?'var(--accent2)':'var(--border2)';
-            return`<div style="text-align:center;cursor:pointer;" onclick="abrirModalMeta(${i})" title="${MESES[i]}: meta ${brl(mm)}, previsto ${brl(real)}">
+
+            // Classificar mês
+            const isFuturo = anoAtual>anoAtualReal || (anoAtual===anoAtualReal && i>mesAtual);
+            const isAtual  = anoAtual===anoAtualReal && i===mesAtual;
+            const isPassado= anoAtual<anoAtualReal || (anoAtual===anoAtualReal && i<mesAtual);
+
+            let corBarra, corLabel, label, bordaAtual='';
+            if(isFuturo){
+              corBarra='var(--border2)';
+              corLabel='var(--text3)';
+              label=mm>0?brl(mm):'—';
+            } else if(isAtual){
+              corBarra='var(--sun)';
+              corLabel='var(--sun)';
+              label=`${p}%`;
+              bordaAtual='border:1.5px solid var(--sun);';
+            } else {
+              // passado — verde se atingiu, vermelho se não
+              corBarra=p>=100?'var(--green)':'var(--red)';
+              corLabel=p>=100?'var(--green)':'var(--red)';
+              label=`${p}%`;
+            }
+
+            return`<div style="text-align:center;cursor:pointer;" onclick="abrirModalMeta(${i})" title="${MESES[i]}: meta ${brl(mm)} · previsto ${brl(real)}">
               <div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px;">${MESES[i].slice(0,3)}</div>
-              <div style="height:28px;background:var(--surface2);border-radius:4px;border:1px solid var(--border);overflow:hidden;position:relative;">
-                <div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${c};transition:height .4s;"></div>
+              <div style="height:32px;background:var(--surface2);border-radius:4px;${bordaAtual}overflow:hidden;position:relative;">
+                ${isFuturo?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;color:var(--text3);">${mm>0?'prev':'—'}</div>`
+                  :`<div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${corBarra};transition:height .5s;opacity:${isAtual?.85:1};"></div>
+                   ${isAtual?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);">${p}%</div>`:''}
+                  `}
               </div>
-              <div style="font-family:var(--mono);font-size:7px;color:${c};margin-top:2px;">${p}%</div>
+              <div style="font-family:var(--mono);font-size:7px;color:${corLabel};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
             </div>`;
           }).join('')}
         </div>
