@@ -1895,14 +1895,19 @@ function abrirModalMeta(mes=null){
   const meta=getMeta(anoAtual);
   document.getElementById('meta-anual').value=meta.anual||'';
   const grid=document.getElementById('meta-meses-grid');
-  grid.innerHTML=Array.from({length:12},(_,i)=>`
-    <div class="modal-field" style="margin:0;">
+  const temMeses=meta.meses && meta.meses.length===12;
+  grid.innerHTML=Array.from({length:12},(_,i)=>{
+    // Mostra o valor salvo (incluindo 0), campo vazio se não há meses salvos
+    const val=temMeses ? meta.meses[i] : '';
+    const placeholder=meta.anual>0?Math.round(meta.anual/12):'';
+    return`<div class="modal-field" style="margin:0;">
       <label style="font-size:9px;">${MESES[i]}</label>
       <input type="number" id="meta-mes-${i}" min="0" step="500"
-        placeholder="${meta.anual>0?Math.round(meta.anual/12):''}"
-        value="${meta.meses[i]||''}"
+        placeholder="${placeholder}"
+        value="${val!==''&&val!==undefined?val:''}"
         oninput="recalcMetaAnual()">
-    </div>`).join('');
+    </div>`;
+  }).join('');
   document.getElementById('modal-meta').classList.add('open');
   if(mes!==null) setTimeout(()=>document.getElementById('meta-mes-'+mes)?.focus(),200);
 }
@@ -1929,19 +1934,35 @@ function metaAnualChanged(){
 }
 function fecharModalMeta(){ document.getElementById('modal-meta').classList.remove('open'); }
 function confirmarMeta(){
-  const mesesArr=Array.from({length:12},(_,i)=>parseFloat(document.getElementById('meta-mes-'+i)?.value)||0);
-  // Se todos os meses estão zerados, usa a distribuição do anual
-  const somaM=mesesArr.reduce((a,v)=>a+v,0);
+  // Lê todos os campos — campos vazios ficam como null (não editados)
+  // campos com valor (incluindo 0 explícito) ficam com o valor
+  const inputs=Array.from({length:12},(_,i)=>document.getElementById('meta-mes-'+i));
+  const mesesArr=inputs.map(inp=>{
+    if(!inp) return null;
+    const raw=inp.value;
+    if(raw===''||raw===null) return null; // não editado
+    return parseFloat(raw)||0; // editado — preserva zero explícito
+  });
+
+  const somaEditados=mesesArr.reduce((a,v)=>a+(v!==null?v:0),0);
+  const temEditados=mesesArr.some(v=>v!==null);
   let anual=parseFloat(document.getElementById('meta-anual').value)||0;
-  if(somaM===0 && anual>0){
+
+  let mesesFinal;
+  if(!temEditados){
     // nenhum mês editado — distribui igualmente
     const pm=Math.round(anual/12);
-    for(let i=0;i<12;i++) mesesArr[i]=pm;
-  } else if(somaM>0){
-    // tem meses editados — anual é a soma
-    anual=somaM;
+    mesesFinal=Array(12).fill(pm);
+  } else {
+    // tem meses editados — preenche não-editados com o valor restante distribuído
+    const qtdNaoEditados=mesesArr.filter(v=>v===null).length;
+    const restante=anual-somaEditados;
+    const pmRestante=qtdNaoEditados>0?Math.round(restante/qtdNaoEditados):0;
+    mesesFinal=mesesArr.map(v=>v!==null?v:pmRestante);
+    anual=mesesFinal.reduce((a,v)=>a+v,0);
   }
-  salvarMeta(anoAtual,anual,mesesArr);
+
+  salvarMeta(anoAtual,anual,mesesFinal);
   fecharModalMeta();
 }
 
@@ -2422,7 +2443,13 @@ function verificarAlertas(){
 let metas = {};
 
 function getMeta(ano){ if(!metas[ano]) metas[ano]={anual:0,meses:Array(12).fill(0)}; return metas[ano]; }
-function getMetaMes(ano,mes){ const m=getMeta(ano); return m.meses[mes]>0?m.meses[mes]:(m.anual>0?m.anual/12:0); }
+function getMetaMes(ano,mes){
+  const m=getMeta(ano);
+  // Se o mês tem valor salvo (incluindo 0 explícito), usa ele
+  // Só usa anual/12 se o array de meses está vazio/não definido
+  if(m.meses && m.meses.length===12) return m.meses[mes];
+  return m.anual>0 ? Math.round(m.anual/12) : 0;
+}
 function salvarMeta(ano,anual,mesesArr){
   metas[ano]={anual:anual||0, meses:mesesArr||Array(12).fill(0)};
   saveFS();
@@ -2999,17 +3026,7 @@ function setPage(p){
     if(mc) mc.scrollTop=0;
   }
   if(p==='cal'){
-    // Sempre rola para o mês atual ao abrir o calendário
-    setTimeout(()=>{
-      const mesAtual=new Date().getMonth();
-      const el=document.getElementById('month-card-'+mesAtual);
-      const mc=document.querySelector('.main-content');
-      if(el && mc){
-        mc.scrollTo({top: Math.max(0, el.offsetTop-60), behavior:'smooth'});
-      } else if(el){
-        el.scrollIntoView({behavior:'smooth',block:'start'});
-      }
-    }, 80);
+    setTimeout(()=>scrollParaMesAtual(), 100);
   }
 }
 
@@ -3515,17 +3532,27 @@ function render(){
   renderPrevisao();
   renderMiniCal();
   if(document.getElementById('page-dash').classList.contains('active')) renderDashboard();
-  // Na primeira abertura, rola para o mês atual
   if(_primeiroRender && anoAtual===new Date().getFullYear()){
     _primeiroRender=false;
-    setTimeout(()=>{
-      const mesAtual=new Date().getMonth();
-      const el=document.getElementById('month-card-'+mesAtual);
-      const mc=document.querySelector('.main-content');
-      if(el && mc) mc.scrollTo({top:Math.max(0,el.offsetTop-60),behavior:'smooth'});
-      else if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
-    }, 300);
+    scrollParaMesAtual();
   }
+}
+
+function scrollParaMesAtual(){
+  const mesAtual=new Date().getMonth();
+  const tentativa=(tentativas)=>{
+    const el=document.getElementById('month-card-'+mesAtual);
+    const mc=document.querySelector('.main-content');
+    if(el && mc){
+      mc.scrollTop=0; // reseta primeiro
+      setTimeout(()=>{
+        mc.scrollTo({top:Math.max(0,el.offsetTop-60),behavior:'smooth'});
+      },50);
+    } else if(tentativas>0){
+      setTimeout(()=>tentativa(tentativas-1), 200);
+    }
+  };
+  setTimeout(()=>tentativa(5), 500);
 }
 
 // ═══════════════════════════════════════════════
