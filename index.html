@@ -384,7 +384,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 /* ══════════════════════════════════════
    MAIN CONTENT
 ══════════════════════════════════════ */
-.main-content{flex:1;overflow-y:auto;background:var(--bg);}
+.main-content{flex:1;overflow-y:auto;background:var(--bg);height:100vh;}
 
 /* ── TOPBAR ── */
 .main-topbar{
@@ -3026,7 +3026,7 @@ function setPage(p){
     if(mc) mc.scrollTop=0;
   }
   if(p==='cal'){
-    setTimeout(()=>scrollParaMesAtual(), 100);
+    scrollParaMesAtual();
   }
 }
 
@@ -3540,19 +3540,26 @@ function render(){
 
 function scrollParaMesAtual(){
   const mesAtual=new Date().getMonth();
-  const tentativa=(tentativas)=>{
+  if(anoAtual!==new Date().getFullYear()) return;
+  const tentativa=(n)=>{
     const el=document.getElementById('month-card-'+mesAtual);
-    const mc=document.querySelector('.main-content');
-    if(el && mc){
-      mc.scrollTop=0; // reseta primeiro
-      setTimeout(()=>{
-        mc.scrollTo({top:Math.max(0,el.offsetTop-60),behavior:'smooth'});
-      },50);
-    } else if(tentativas>0){
-      setTimeout(()=>tentativa(tentativas-1), 200);
+    if(el){
+      const top=el.getBoundingClientRect().top + window.pageYOffset - 70;
+      // Tenta scroll no main-content
+      const mc=document.querySelector('.main-content');
+      if(mc && mc.scrollHeight > mc.clientHeight){
+        mc.scrollTop=el.offsetTop-70;
+      } else {
+        // Fallback: scroll no window
+        window.scrollTo({top: Math.max(0,top), behavior:'smooth'});
+        document.documentElement.scrollTop = Math.max(0,el.offsetTop-70);
+        document.body.scrollTop = Math.max(0,el.offsetTop-70);
+      }
+    } else if(n>0){
+      setTimeout(()=>tentativa(n-1), 300);
     }
   };
-  setTimeout(()=>tentativa(5), 500);
+  setTimeout(()=>tentativa(8), 600);
 }
 
 // ═══════════════════════════════════════════════
