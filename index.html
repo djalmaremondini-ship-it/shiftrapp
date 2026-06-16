@@ -2819,12 +2819,15 @@ function renderDashboard(){
       const ciclos=gerarCiclos(cfg);
       ciclos.forEach(c=>{
         if(c.pagamento.getFullYear()!==anoAtual) return;
-        const total=plantoes.filter(p=>{
+        const ps=plantoes.filter(p=>{
           const d=parseD(p.data);
           return p.hospId===h.id && d>=c.inicio && d<=c.fim;
-        }).reduce((a,p)=>a+p.valor,0);
-        if(total<=0) return;
-        const key=fmtD(c.pagamento); // dd/mm/yyyy
+        });
+        const bruto=ps.reduce((a,p)=>a+p.valor,0);
+        if(bruto<=0) return;
+        const desconto=bruto>0?(cfg.taxa||0):0;
+        const total=bruto-desconto;
+        const key=fmtD(c.pagamento);
         if(!porData[key]) porData[key]={pagamento:c.pagamento,itens:[]};
         porData[key].itens.push({cor:h.cor,nome:h.nome,val:total});
       });
