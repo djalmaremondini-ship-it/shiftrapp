@@ -3111,7 +3111,6 @@ function renderDashboard(){
               corLabel=p>=100?'var(--green)':'var(--red)';
               label=`${p}%`;
             } else {
-              // Futuro/atual — laranja se previsto >= meta, vermelho se abaixo
               const atingeMeta = mm>0 ? real>=mm : false;
               const isHoje = dataPgtoMes && Math.abs(dataPgtoMes-hoje)<(31*24*60*60*1000);
               corBarra = mm>0 ? (atingeMeta?'var(--sun)':'var(--red)') : 'var(--border2)';
@@ -3122,10 +3121,11 @@ function renderDashboard(){
 
             return`<div style="text-align:center;cursor:pointer;" onclick="abrirModalMeta(${i})" title="${MESES[i]}: meta ${brl(mm)} · previsto ${brl(real)}">
               <div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px;">${MESES[i].slice(0,3)}</div>
-              <div style="height:32px;background:${!isPassado&&mm>0?corBarra:'var(--surface2)'};border-radius:4px;${bordaAtual}overflow:hidden;position:relative;">
+              <div style="height:32px;background:${!isPassado&&mm>0?corBarra:(isPassado&&(p===0||p>=100)?corBarra:'var(--surface2)')};border-radius:4px;${bordaAtual}overflow:hidden;position:relative;">
                 ${!isPassado
                   ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:${mm>0?'9':'7'}px;font-weight:700;color:${mm>0?'#fff':'var(--text3)'};text-shadow:${mm>0?'0 1px 3px rgba(0,0,0,.3)':'none'};">${label}</div>`
-                  : `<div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${corBarra};transition:height .5s;"></div>`
+                  : `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.max(p,p===0?100:p)}%;background:${corBarra};transition:height .5s;"></div>
+                     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4);">${label}</div>`
                 }
               </div>
               <div style="font-family:var(--mono);font-size:7px;color:${!isPassado&&mm>0?corBarra:corLabel};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${!isPassado&&mm>0?'previsto':label}</div>
