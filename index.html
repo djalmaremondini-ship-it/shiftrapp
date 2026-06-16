@@ -808,11 +808,11 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
     <div class="modal-drag"></div>
     <div class="modal-title">🎯 Configurar meta</div>
     <div class="modal-field">
-      <label>Meta anual (R$)</label>
-      <input type="number" id="meta-anual" min="0" step="1000" placeholder="Ex: 200000">
+      <label>Meta anual (R$) — atualiza automaticamente ao editar meses</label>
+      <input type="number" id="meta-anual" min="0" step="1000" placeholder="Ex: 408000" oninput="metaAnualChanged()">
     </div>
     <div id="meta-meses-wrap" style="margin-top:4px;">
-      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Ajuste por mês (opcional — deixe 0 para distribuir igualmente)</div>
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Ajuste por mês — editar um mês recalcula o total anual automaticamente</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;" id="meta-meses-grid"></div>
     </div>
     <div class="modal-actions">
@@ -1900,15 +1900,47 @@ function abrirModalMeta(mes=null){
       <label style="font-size:9px;">${MESES[i]}</label>
       <input type="number" id="meta-mes-${i}" min="0" step="500"
         placeholder="${meta.anual>0?Math.round(meta.anual/12):''}"
-        value="${meta.meses[i]||''}">
+        value="${meta.meses[i]||''}"
+        oninput="recalcMetaAnual()">
     </div>`).join('');
   document.getElementById('modal-meta').classList.add('open');
   if(mes!==null) setTimeout(()=>document.getElementById('meta-mes-'+mes)?.focus(),200);
 }
+
+function recalcMetaAnual(){
+  // Soma todos os meses preenchidos e atualiza o campo anual
+  let soma=0;
+  for(let i=0;i<12;i++){
+    const v=parseFloat(document.getElementById('meta-mes-'+i)?.value)||0;
+    soma+=v;
+  }
+  if(soma>0) document.getElementById('meta-anual').value=soma;
+}
+
+function metaAnualChanged(){
+  // Quando muda o anual, distribui igualmente nos meses vazios
+  const anual=parseFloat(document.getElementById('meta-anual').value)||0;
+  if(!anual) return;
+  const porMes=Math.round(anual/12);
+  for(let i=0;i<12;i++){
+    const inp=document.getElementById('meta-mes-'+i);
+    if(inp&&!inp.value) inp.placeholder=porMes;
+  }
+}
 function fecharModalMeta(){ document.getElementById('modal-meta').classList.remove('open'); }
 function confirmarMeta(){
-  const anual=parseFloat(document.getElementById('meta-anual').value)||0;
   const mesesArr=Array.from({length:12},(_,i)=>parseFloat(document.getElementById('meta-mes-'+i)?.value)||0);
+  // Se todos os meses estão zerados, usa a distribuição do anual
+  const somaM=mesesArr.reduce((a,v)=>a+v,0);
+  let anual=parseFloat(document.getElementById('meta-anual').value)||0;
+  if(somaM===0 && anual>0){
+    // nenhum mês editado — distribui igualmente
+    const pm=Math.round(anual/12);
+    for(let i=0;i<12;i++) mesesArr[i]=pm;
+  } else if(somaM>0){
+    // tem meses editados — anual é a soma
+    anual=somaM;
+  }
   salvarMeta(anoAtual,anual,mesesArr);
   fecharModalMeta();
 }
@@ -3595,11 +3627,13 @@ window.removerArquivoDoc = removerArquivoDoc;
 window.verDocumento      = verDocumento;
 window.baixarDocumento   = baixarDocumento;
 window.toggleRegimeIR       = toggleRegimeIR;
-window.abrirModalMeta       = abrirModalMeta;
-window.fecharModalMeta      = fecharModalMeta;
-window.confirmarMeta        = confirmarMeta;
+window.abrirModalMeta        = abrirModalMeta;
+window.fecharModalMeta       = fecharModalMeta;
+window.confirmarMeta         = confirmarMeta;
+window.recalcMetaAnual       = recalcMetaAnual;
+window.metaAnualChanged      = metaAnualChanged;
 window.gerarRelatorioIRAnual = gerarRelatorioIRAnual;
-window.salvarMeta           = salvarMeta;
+window.salvarMeta            = salvarMeta;
 window.abrirModalPlantao   = abrirModalPlantao;
 window.fecharModalPlantao  = fecharModalPlantao;
 window.confirmarPlantao    = confirmarPlantao;
