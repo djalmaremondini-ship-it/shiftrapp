@@ -802,6 +802,26 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 </div>
 <div class="sidebar-overlay" id="sb-overlay" onclick="fecharMenu()"></div>
 
+<!-- Modal Meta -->
+<div class="modal-overlay" id="modal-meta">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title">🎯 Configurar meta</div>
+    <div class="modal-field">
+      <label>Meta anual (R$)</label>
+      <input type="number" id="meta-anual" min="0" step="1000" placeholder="Ex: 200000">
+    </div>
+    <div id="meta-meses-wrap" style="margin-top:4px;">
+      <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;">Ajuste por mês (opcional — deixe 0 para distribuir igualmente)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;" id="meta-meses-grid"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModalMeta()">Cancelar</button>
+      <button class="btn-primary" onclick="confirmarMeta()">Salvar meta</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal documento -->
 <div class="modal-overlay" id="modal-doc">
   <div class="modal">
@@ -1228,6 +1248,7 @@ async function carregarDoFirestore(uid){
       if(Array.isArray(d.documentos)) documentos = d.documentos;
       if(d.regras && typeof d.regras==='object') { regras=d.regras; regrasHosp=regras; }
       if(d.perfil && typeof d.perfil==='object') perfil = {...perfil, ...d.perfil};
+      if(d.metas && typeof d.metas==='object')   metas  = d.metas;
       if(d.tema) localStorage.setItem(DK, d.tema);
     }
     showSyncBar('Sincronizado ✓');
@@ -1249,7 +1270,7 @@ async function _salvarFirestore(uid){
   try{
     // Dados principais — documentos ficam na subcoleção separada
     await setDoc(doc(db,'usuarios',uid),{
-      plantoes, hospitais, regras, perfil,
+      plantoes, hospitais, regras, perfil, metas,
       tema: localStorage.getItem(DK)||'dark',
       updatedAt: new Date().toISOString()
     });
@@ -1868,8 +1889,174 @@ function gerarDatasFixo(){
 }
 
 // ═══════════════════════════════════════════════
-// DOCUMENTOS & CERTIFICADOS
+// MODAL META
 // ═══════════════════════════════════════════════
+function abrirModalMeta(mes=null){
+  const meta=getMeta(anoAtual);
+  document.getElementById('meta-anual').value=meta.anual||'';
+  const grid=document.getElementById('meta-meses-grid');
+  grid.innerHTML=Array.from({length:12},(_,i)=>`
+    <div class="modal-field" style="margin:0;">
+      <label style="font-size:9px;">${MESES[i]}</label>
+      <input type="number" id="meta-mes-${i}" min="0" step="500"
+        placeholder="${meta.anual>0?Math.round(meta.anual/12):''}"
+        value="${meta.meses[i]||''}">
+    </div>`).join('');
+  document.getElementById('modal-meta').classList.add('open');
+  if(mes!==null) setTimeout(()=>document.getElementById('meta-mes-'+mes)?.focus(),200);
+}
+function fecharModalMeta(){ document.getElementById('modal-meta').classList.remove('open'); }
+function confirmarMeta(){
+  const anual=parseFloat(document.getElementById('meta-anual').value)||0;
+  const mesesArr=Array.from({length:12},(_,i)=>parseFloat(document.getElementById('meta-mes-'+i)?.value)||0);
+  salvarMeta(anoAtual,anual,mesesArr);
+  fecharModalMeta();
+}
+
+// ═══════════════════════════════════════════════
+// RELATÓRIO ANUAL IR — PDF
+// ═══════════════════════════════════════════════
+function gerarRelatorioIRAnual(){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const ml=14,mr=196,pw=mr-ml;
+  let y=14;
+  const LINE=5.5;
+
+  // Cabeçalho
+  doc.setFillColor(30,28,40);
+  doc.rect(0,0,210,28,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.setTextColor(165,148,255);
+  doc.text('Shiftr — Relatório Anual de IR',ml,10);
+  doc.setFontSize(9);
+  doc.setTextColor(150,150,170);
+  doc.text(`${perfil.nome||'Médico'}  ·  Ano ${anoAtual}  ·  Gerado em ${new Date().toLocaleDateString('pt-BR')}`,ml,16);
+  doc.setFontSize(8);
+  doc.text('Este relatório é informativo. Consulte seu contador para declaração oficial.',ml,22);
+  y=36;
+
+  const addLinha=(txt,negrito=false,cor=[40,40,50])=>{
+    doc.setFont('helvetica',negrito?'bold':'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...cor);
+    doc.text(txt,ml,y);
+    y+=LINE;
+  };
+  const addSep=()=>{ doc.setDrawColor(200,200,220); doc.line(ml,y,mr,y); y+=3; };
+
+  hospitais.forEach(h=>{
+    const cfg=getRegrasHosp(h.id);
+    const ciclos=gerarCiclos(cfg);
+    const regime=h.regime||'empresa';
+
+    // cabeçalho do hospital
+    if(y>260){ doc.addPage(); y=14; }
+    doc.setFillColor(245,244,255);
+    doc.rect(ml,y-4,pw,7,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(80,60,180);
+    doc.text(`${h.nome}`,ml+1,y);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(120,120,140);
+    doc.text(labelRegime(regime)+(h.aliq>0?`  ·  ${h.aliq}% IR`:''),ml+1,y+4.5);
+    y+=10;
+
+    let totalBrutoH=0, totalTaxaH=0, totalIRH=0, totalLiqH=0;
+
+    ciclos.forEach(c=>{
+      if(c.pagamento.getFullYear()!==anoAtual) return;
+      const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+      const bruto=ps.reduce((a,p)=>a+p.valor,0);
+      const taxa=bruto>0?(cfg.taxa||0):0;
+      const liq=bruto-taxa;
+      const ir=calcIR(liq,regime,h.aliq||0);
+      totalBrutoH+=bruto; totalTaxaH+=taxa; totalIRH+=ir; totalLiqH+=(liq-ir);
+
+      if(y>270){ doc.addPage(); y=14; }
+      const periodo=`${fmtD(c.inicio)} – ${fmtD(c.fim)}`;
+      const pgto=`Pgto: ${fmtD(c.pagamento)}`;
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.setTextColor(60,60,70);
+      doc.text(periodo,ml+2,y);
+      doc.text(pgto,ml+60,y);
+      doc.text(`Bruto: ${brl(bruto)}`,ml+100,y);
+      if(taxa>0) doc.text(`Taxa: -${brl(taxa)}`,ml+135,y);
+      if(regime!=='empresa'&&ir>0){
+        doc.setTextColor(200,100,0);
+        doc.text(`IR: -${brl(ir)}`,ml+160,y);
+        doc.setTextColor(60,60,70);
+        doc.text(`Líq: ${brl(liq-ir)}`,ml+178,y);
+      }
+      y+=LINE;
+    });
+
+    // subtotal hospital
+    addSep();
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(40,40,50);
+    doc.text(`Total ${h.nome}`,ml+2,y);
+    doc.text(`Bruto: ${brl(totalBrutoH)}`,ml+100,y);
+    if(totalTaxaH>0) doc.text(`Taxa: -${brl(totalTaxaH)}`,ml+135,y);
+    if(regime!=='empresa'){
+      doc.setTextColor(200,100,0);
+      doc.text(`IR: -${brl(totalIRH)}`,ml+160,y);
+      doc.setTextColor(0,120,60);
+      doc.text(`Líq: ${brl(totalLiqH)}`,ml+178,y);
+    }
+    y+=8;
+  });
+
+  // Totais gerais
+  if(y>250){ doc.addPage(); y=14; }
+  doc.setFillColor(30,28,40);
+  doc.rect(ml,y-4,pw,8,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(165,148,255);
+
+  // calcular totais
+  let gBruto=0,gTaxa=0,gIR=0,gLiq=0;
+  hospitais.forEach(h=>{
+    const cfg=getRegrasHosp(h.id);
+    gerarCiclos(cfg).forEach(c=>{
+      if(c.pagamento.getFullYear()!==anoAtual) return;
+      const ps=plantoes.filter(p=>{const d=parseD(p.data);return p.hospId===h.id&&d>=c.inicio&&d<=c.fim;});
+      const bruto=ps.reduce((a,p)=>a+p.valor,0);
+      const taxa=bruto>0?(cfg.taxa||0):0;
+      const liq=bruto-taxa;
+      const ir=calcIR(liq,h.regime||'empresa',h.aliq||0);
+      gBruto+=bruto; gTaxa+=taxa; gIR+=ir; gLiq+=(liq-ir);
+    });
+  });
+  doc.text(`TOTAL ANUAL ${anoAtual}`,ml+2,y);
+  doc.text(`Bruto: ${brl(gBruto)}`,ml+80,y);
+  if(gTaxa>0) doc.text(`Taxa: -${brl(gTaxa)}`,ml+120,y);
+  doc.setTextColor(245,166,35);
+  doc.text(`IR total: -${brl(gIR)}`,ml+150,y);
+  doc.setTextColor(46,194,126);
+  doc.text(`Líquido: ${brl(gLiq)}`,ml+175,y);
+  y+=14;
+
+  // Nota
+  doc.setFont('helvetica','italic');
+  doc.setFontSize(7);
+  doc.setTextColor(150,150,160);
+  doc.text('* Relatório gerado pelo Shiftr com base nos plantões cadastrados. Valores estimados.',ml,y);
+  doc.text('  Consulte seu contador para declaração de Imposto de Renda.',ml,y+4);
+
+  doc.save(`shiftr-ir-${anoAtual}.pdf`);
+}
+
+function gerarRelatorioIRHosp(hospId){
+  // Relatório individual por hospital — chama o anual filtrado
+  gerarRelatorioIRAnual(hospId);
+}
 let documentos = [];
 let editDocId = null;
 let _docArquivoBase64 = null; // arquivo em memória durante edição
@@ -2121,6 +2308,20 @@ function verificarAlertas(){
 
   document.getElementById('painel-alertas').style.display='block';
 }
+// ═══════════════════════════════════════════════
+// META MENSAL / ANUAL
+// ═══════════════════════════════════════════════
+let metas = {};
+
+function getMeta(ano){ if(!metas[ano]) metas[ano]={anual:0,meses:Array(12).fill(0)}; return metas[ano]; }
+function getMetaMes(ano,mes){ const m=getMeta(ano); return m.meses[mes]>0?m.meses[mes]:(m.anual>0?m.anual/12:0); }
+function salvarMeta(ano,anual,mesesArr){
+  metas[ano]={anual:anual||0, meses:mesesArr||Array(12).fill(0)};
+  saveFS();
+  renderDashboard();
+}
+
+// ═══════════════════════════════════════════════
 function navAno(d){ anoAtual+=d; render(); }
 
 // ═══════════════════════════════════════════════
@@ -2747,6 +2948,57 @@ function renderDashboard(){
   const totFDS=pAno.filter(p=>isWE(parseD(p.data))).reduce((a,p)=>a+p.valor,0);
 
   el.innerHTML=`
+  <!-- Meta anual -->
+  ${(()=>{
+    const meta=getMeta(anoAtual);
+    const metaAnual=meta.anual||0;
+    const totalPrevisto=porMesPgtoGlobal.reduce((a,m)=>a+m.total,0);
+    const pct=metaAnual>0?Math.min(Math.round(totalPrevisto/metaAnual*100),100):0;
+    const falta=metaAnual>0?Math.max(metaAnual-totalPrevisto,0):0;
+    const corPct=pct>=100?'var(--green)':pct>=70?'var(--accent2)':pct>=40?'var(--sun)':'var(--red)';
+    return`<div class="dash-card" style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="dash-card-title" style="margin-bottom:0">🎯 Meta de recebimento — ${anoAtual}</div>
+        <button onclick="abrirModalMeta()" style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text2);">⚙ Configurar</button>
+      </div>
+      ${metaAnual>0?`
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${corPct}">${pct}%</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px;">de ${brl(metaAnual)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text)">${brl(totalPrevisto)}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);">previsto receber</div>
+            ${falta>0?`<div style="font-family:var(--mono);font-size:10px;color:var(--sun);margin-top:2px;">faltam ${brl(falta)}</div>`:`<div style="font-family:var(--mono);font-size:10px;color:var(--green);margin-top:2px;">✓ Meta atingida!</div>`}
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden;border:1px solid var(--border);">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,${corPct},${corPct}cc);border-radius:6px;transition:width .5s;"></div>
+        </div>
+        <!-- Metas mensais -->
+        <div style="margin-top:10px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
+          ${Array.from({length:12},(_,i)=>{
+            const mm=getMetaMes(anoAtual,i);
+            const real=porMesPgtoGlobal[i].total;
+            const p=mm>0?Math.min(Math.round(real/mm*100),100):0;
+            const c=p>=100?'var(--green)':p>=60?'var(--accent2)':'var(--border2)';
+            return`<div style="text-align:center;cursor:pointer;" onclick="abrirModalMeta(${i})" title="${MESES[i]}: meta ${brl(mm)}, previsto ${brl(real)}">
+              <div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:2px;">${MESES[i].slice(0,3)}</div>
+              <div style="height:28px;background:var(--surface2);border-radius:4px;border:1px solid var(--border);overflow:hidden;position:relative;">
+                <div style="position:absolute;bottom:0;left:0;right:0;height:${p}%;background:${c};transition:height .4s;"></div>
+              </div>
+              <div style="font-family:var(--mono);font-size:7px;color:${c};margin-top:2px;">${p}%</div>
+            </div>`;
+          }).join('')}
+        </div>
+      `:`<div style="font-family:var(--mono);font-size:11px;color:var(--text3);text-align:center;padding:16px 0;">
+          Nenhuma meta definida.<br>
+          <span style="color:var(--accent2);cursor:pointer;" onclick="abrirModalMeta()">Clique em Configurar para definir sua meta anual →</span>
+        </div>`}
+    </div>`;
+  })()}
+
   <!-- KPIs -->
   <div class="dash-grid">
     <div class="dash-card">
@@ -3047,6 +3299,16 @@ function renderDashboard(){
         <tbody>${rows}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
+    </div>
+    <!-- Relatório anual IR -->
+    <div class="dash-card" style="margin-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div class="dash-card-title" style="margin-bottom:2px">📊 Relatório anual de IR — ${anoAtual}</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);">Para entrega ao contador ou conferência própria</div>
+        </div>
+        <button onclick="gerarRelatorioIRAnual()" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 16px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600;box-shadow:0 4px 12px var(--accent-glow);">⬇ Gerar PDF</button>
+      </div>
     </div>`;
   })()}`;
 }
@@ -3192,7 +3454,12 @@ window.handleDocFile     = handleDocFile;
 window.removerArquivoDoc = removerArquivoDoc;
 window.verDocumento      = verDocumento;
 window.baixarDocumento   = baixarDocumento;
-window.toggleRegimeIR      = toggleRegimeIR;
+window.toggleRegimeIR       = toggleRegimeIR;
+window.abrirModalMeta       = abrirModalMeta;
+window.fecharModalMeta      = fecharModalMeta;
+window.confirmarMeta        = confirmarMeta;
+window.gerarRelatorioIRAnual = gerarRelatorioIRAnual;
+window.salvarMeta           = salvarMeta;
 window.abrirModalPlantao   = abrirModalPlantao;
 window.fecharModalPlantao  = fecharModalPlantao;
 window.confirmarPlantao    = confirmarPlantao;
