@@ -3543,23 +3543,16 @@ function scrollParaMesAtual(){
   if(anoAtual!==new Date().getFullYear()) return;
   const tentativa=(n)=>{
     const el=document.getElementById('month-card-'+mesAtual);
-    if(el){
-      const top=el.getBoundingClientRect().top + window.pageYOffset - 70;
-      // Tenta scroll no main-content
-      const mc=document.querySelector('.main-content');
-      if(mc && mc.scrollHeight > mc.clientHeight){
-        mc.scrollTop=el.offsetTop-70;
-      } else {
-        // Fallback: scroll no window
-        window.scrollTo({top: Math.max(0,top), behavior:'smooth'});
-        document.documentElement.scrollTop = Math.max(0,el.offsetTop-70);
-        document.body.scrollTop = Math.max(0,el.offsetTop-70);
-      }
+    const mc=document.querySelector('.main-content');
+    if(el && mc){
+      // offsetTop do elemento relativo ao main-content
+      const offset=el.offsetTop - 70;
+      mc.scrollTop=Math.max(0,offset);
     } else if(n>0){
       setTimeout(()=>tentativa(n-1), 300);
     }
   };
-  setTimeout(()=>tentativa(8), 600);
+  setTimeout(()=>tentativa(8), 400);
 }
 
 // ═══════════════════════════════════════════════
