@@ -3776,16 +3776,46 @@ function scrollParaMesAtual(){
   if(anoAtual!==new Date().getFullYear()) return;
   const tentativa=(n)=>{
     const el=document.getElementById('month-card-'+mesAtual);
+    if(!el){
+      if(n>0) setTimeout(()=>tentativa(n-1), 300);
+      return;
+    }
+
+    // Detecta o container que de fato tem scroll
     const mc=document.querySelector('.main-content');
-    if(el && mc){
-      // offsetTop do elemento relativo ao main-content
-      const offset=el.offsetTop - 70;
-      mc.scrollTop=Math.max(0,offset);
-    } else if(n>0){
-      setTimeout(()=>tentativa(n-1), 300);
+    const candidatos=[mc, document.scrollingElement, document.documentElement, document.body].filter(Boolean);
+
+    let aplicou=false;
+    candidatos.forEach(cont=>{
+      if(cont.scrollHeight > cont.clientHeight + 5){
+        // calcula offset do elemento relativo a esse container
+        let offsetTop=0;
+        let node=el;
+        while(node && node!==cont && node!==document.body){
+          offsetTop+=node.offsetTop||0;
+          node=node.offsetParent;
+        }
+        // fallback simples se o cálculo acima não bater com main-content direto
+        if(cont===mc){
+          cont.scrollTop=Math.max(0, el.offsetTop-70);
+        } else {
+          const rect=el.getBoundingClientRect();
+          const contRect=cont===document.documentElement||cont===document.body ? {top:0} : cont.getBoundingClientRect();
+          const target=cont.scrollTop + (rect.top - contRect.top) - 70;
+          cont.scrollTop=Math.max(0,target);
+        }
+        aplicou=true;
+      }
+    });
+
+    // Garantia extra: scrollIntoView como fallback final
+    if(!aplicou){
+      el.scrollIntoView({behavior:'auto',block:'start'});
+      // ajusta o offset do header sticky
+      window.scrollBy(0,-70);
     }
   };
-  setTimeout(()=>tentativa(8), 400);
+  setTimeout(()=>tentativa(10), 400);
 }
 
 // ═══════════════════════════════════════════════
