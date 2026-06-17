@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shiftr-v4';
+const CACHE_NAME = 'shiftr-v5';
 
 const ASSETS = [
   './index.html',
@@ -42,15 +42,30 @@ self.addEventListener('fetch', event => {
   ) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const fetch_ = fetch(event.request).then(res => {
-        if (res.status === 200) {
-          caches.open(CACHE_NAME).then(c => c.put(event.request, res.clone()));
+    (async () => {
+      const cached = await caches.match(event.request);
+      if (cached) {
+        // Atualiza o cache em background, sem bloquear a resposta
+        fetch(event.request).then(res => {
+          if (res && res.status === 200) {
+            caches.open(CACHE_NAME).then(c => c.put(event.request, res));
+          }
+        }).catch(() => {});
+        return cached;
+      }
+      // Sem cache — busca na rede
+      try {
+        const res = await fetch(event.request);
+        if (res && res.status === 200) {
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, resClone));
         }
         return res;
-      }).catch(() => cached);
-      return cached || fetch_;
-    })
+      } catch (e) {
+        // Offline e sem cache — deixa falhar normalmente
+        throw e;
+      }
+    })()
   );
 });
 
